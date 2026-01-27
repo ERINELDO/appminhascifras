@@ -1,0 +1,36 @@
+
+-- Execute estes comandos no SQL Editor do Supabase para criar a estrutura de Metas:
+
+CREATE TABLE IF NOT EXISTS public.goal_types (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    color TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.goal_accounts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.goals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    target_value NUMERIC NOT NULL DEFAULT 0,
+    current_value NUMERIC DEFAULT 0,
+    start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    months_forecast INTEGER DEFAULT 12,
+    target_date DATE,
+    type_id UUID REFERENCES public.goal_types(id) ON DELETE SET NULL,
+    account_id UUID REFERENCES public.goal_accounts(id) ON DELETE SET NULL,
+    observation TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.goal_types DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.goal_accounts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.goals DISABLE ROW LEVEL SECURITY;
+
+NOTIFY pgrst, 'reload schema';
