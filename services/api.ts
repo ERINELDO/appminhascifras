@@ -1,3 +1,4 @@
+
 import { supabase } from '../lib/supabase';
 import { 
   StudyPlan, StudyCourse, StudyDiscipline, StudyTopic, 
@@ -442,7 +443,6 @@ export const api = {
     if (error) throw error;
   },
 
-  // ✅ CORREÇÃO CRÍTICA: startStudySession agora persiste o ID immediately
   async startStudySession(sess: Partial<StudySession>): Promise<StudySession> {
     const { data: { session: authSession } } = await supabase.auth.getSession();
     
@@ -461,15 +461,9 @@ export const api = {
       .single();
     
     if (error) {
-      console.error("❌ Erro ao criar sessão no banco:", error);
       throw new Error(`Falha ao iniciar sessão: ${error.message}`);
     }
 
-    if (!data || !data.id) {
-      throw new Error("❌ Sessão criada mas ID não retornado pelo banco");
-    }
-
-    // ✅ Mapeamento explícito garantindo que o ID exista
     const session: StudySession = { 
       id: data.id,
       idUsuario: data.user_id, 
@@ -479,24 +473,16 @@ export const api = {
       startTime: data.start_time 
     };
 
-    // ✅ Salvamento redundante no localStorage para garantir persistência
     localStorage.setItem('babylon_study_session_id', data.id);
-    
-    console.log("✅ Sessão iniciada com sucesso. ID:", data.id);
-    
     return session;
   },
 
-  // ✅ CORREÇÃO CRÍTICA: finishStudySession com validação robusta e tratamento de erro
   async finishStudySession(sessionId: string, durationSeconds: number) {
     if (!sessionId || sessionId.trim() === '') {
-      throw new Error("❌ ID da sessão inválido ou ausente");
+      throw new Error("ID da sessão inválido ou ausente");
     }
 
     const endTime = new Date().toISOString();
-    
-    console.log("🔄 Tentando finalizar sessão:", { sessionId, durationSeconds, endTime });
-
     const { data, error } = await supabase
       .from('study_sessions')
       .update({ 
@@ -508,19 +494,10 @@ export const api = {
       .single();
     
     if (error) {
-      console.error("❌ Erro ao finalizar sessão:", error);
-      throw new Error(`Falha ao salvar: ${error.message || 'Erro desconhecido no banco'}`);
+      throw new Error(`Falha ao salvar: ${error.message}`);
     }
 
-    if (!data) {
-      throw new Error("❌ Sessão não encontrada no banco. Pode ter sido deletada.");
-    }
-
-    console.log("✅ Sessão finalizada com sucesso:", data);
-    
-    // ✅ Limpeza do localStorage após sucesso
     localStorage.removeItem('babylon_study_session_id');
-    
     return data;
   },
 
@@ -726,7 +703,6 @@ export const api = {
       .order('created_at', { ascending: false });
     
     if (error) {
-       console.error("Erro ao buscar licenças:", error);
        return [];
     }
 

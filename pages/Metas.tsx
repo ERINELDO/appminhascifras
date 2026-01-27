@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Goal, GoalType, GoalEntry, GoalAccount } from '../types';
 import { 
@@ -203,6 +204,7 @@ export const Metas: React.FC = () => {
     if (!name || isNaN(val) || val <= 0 || isSubmitting) return;
 
     setIsSubmitting(true);
+    // TypeScript correction: use || undefined instead of null to match interface Goal
     const data = { 
       name, 
       targetValue: val, 
@@ -509,9 +511,9 @@ export const Metas: React.FC = () => {
       {/* PAGINAÇÃO */}
       {!syncError && totalPages > 1 && (
         <div className="flex justify-center items-center gap-4">
-           <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-3 bg-emerald-600 text-white rounded-none border-2 border-emerald-700 disabled:opacity-30 disabled:bg-slate-300 hover:bg-emerald-700 transition-all shadow-[4px_4px_0px_0px_rgba(5,150,105,1)]"><ChevronLeft strokeWidth={3} /></button>
+           <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-3 bg-emerald-600 text-white rounded-none border-2 border-emerald-700 disabled:opacity-30 disabled:bg-slate-300 hover:bg-emerald-700 transition-all shadow-[4px_4px_0px_0px_rgba(5,150,105,1)]"><ChevronLeft size={20} strokeWidth={3} /></button>
            <span className="font-black text-xs text-slate-500 uppercase tracking-widest bg-white border-2 border-slate-300 px-6 py-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)]">Página {currentPage} de {totalPages}</span>
-           <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-3 bg-emerald-600 text-white rounded-none border-2 border-emerald-700 disabled:opacity-30 disabled:bg-slate-300 hover:bg-emerald-700 transition-all shadow-[4px_4px_0px_0px_rgba(5,150,105,1)]"><ChevronRight strokeWidth={3} /></button>
+           <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-3 bg-emerald-600 text-white rounded-none border-2 border-emerald-700 disabled:opacity-30 disabled:bg-slate-300 hover:bg-emerald-700 transition-all shadow-[4px_4px_0px_0px_rgba(5,150,105,1)]"><ChevronRight size={20} strokeWidth={3} /></button>
         </div>
       )}
 
