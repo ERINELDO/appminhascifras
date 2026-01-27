@@ -1,34 +1,43 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Login } from './pages/Login'; 
-import { Dashboard } from './pages/Dashboard';
-import AdminDashboard from './pages/AdminDashboard'; 
-import { TransactionForm } from './pages/TransactionForm';
-import { Agenda } from './pages/Agenda';
-import { Metas } from './pages/Metas';
-import { Investments } from './pages/Investments';
-import { WithdrawalHistory } from './pages/WithdrawalHistory';
-import { AdminPanel } from './pages/AdminPanel';
-import { Licenses } from './pages/Licenses';
-import { UserInvoices } from './pages/UserInvoices';
-import { Plans } from './pages/Plans';
 import { ProfileModal } from './components/ProfileModal';
-
-import { StudyCourses } from './pages/StudyCourses';
-import { StudyDashboard } from './pages/StudyDashboard';
-import { StudyDisciplines } from './pages/StudyDisciplines';
-import { StudyLessons } from './pages/StudyLessons';
-import { StudyMockTests } from './pages/StudyMockTests';
-import { StudyExercises } from './pages/StudyExercises';
-import { StudyPlanning } from './pages/StudyPlanning';
-import { EditalAnalysis } from './pages/EditalAnalysis';
 import { StudyTimer } from './components/StudyTimer';
 
-import { Transaction, AgendaEvent, Investment, Category, User, InvestmentType, Withdrawal, Goal, AppSettings, License, LicensePlan, TransactionType, StudyCourse, StudyDiscipline, StudyMockTest } from './types';
-import { Menu, Loader2, AlertTriangle, RefreshCw, ShieldAlert, LogOut, CreditCard, User as UserIcon, ShoppingBag, ChevronDown, Sun, Moon, ArrowUpCircle, ArrowDownCircle, GraduationCap, Briefcase, ArrowLeft, Play, Timer } from 'lucide-react';
+// Dynamic imports para divisão de código
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const TransactionForm = lazy(() => import('./pages/TransactionForm').then(m => ({ default: m.TransactionForm })));
+const Agenda = lazy(() => import('./pages/Agenda').then(m => ({ default: m.Agenda })));
+const Metas = lazy(() => import('./pages/Metas').then(m => ({ default: m.Metas })));
+const Investments = lazy(() => import('./pages/Investments').then(m => ({ default: m.Investments })));
+const WithdrawalHistory = lazy(() => import('./pages/WithdrawalHistory').then(m => ({ default: m.WithdrawalHistory })));
+const AdminPanel = lazy(() => import('./pages/AdminPanel').then(m => ({ default: m.AdminPanel })));
+const Licenses = lazy(() => import('./pages/Licenses').then(m => ({ default: m.Licenses })));
+const UserInvoices = lazy(() => import('./pages/UserInvoices').then(m => ({ default: m.UserInvoices })));
+const Plans = lazy(() => import('./pages/Plans').then(m => ({ default: m.Plans })));
+
+const StudyCourses = lazy(() => import('./pages/StudyCourses').then(m => ({ default: m.StudyCourses })));
+const StudyDashboard = lazy(() => import('./pages/StudyDashboard').then(m => ({ default: m.StudyDashboard })));
+const StudyDisciplines = lazy(() => import('./pages/StudyDisciplines').then(m => ({ default: m.StudyDisciplines })));
+const StudyLessons = lazy(() => import('./pages/StudyLessons').then(m => ({ default: m.StudyLessons })));
+const StudyMockTests = lazy(() => import('./pages/StudyMockTests').then(m => ({ default: m.StudyMockTests })));
+const StudyExercises = lazy(() => import('./pages/StudyExercises').then(m => ({ default: m.StudyExercises })));
+const StudyPlanning = lazy(() => import('./pages/StudyPlanning').then(m => ({ default: m.StudyPlanning })));
+const EditalAnalysis = lazy(() => import('./pages/EditalAnalysis').then(m => ({ default: m.EditalAnalysis })));
+
+import { Transaction, AgendaEvent, Investment, Category, User, InvestmentType, Withdrawal, Goal, AppSettings, License, LicensePlan, TransactionType, StudyCourse, StudyDiscipline } from './types';
+import { Menu, Loader2, ShieldAlert, LogOut, CreditCard, User as UserIcon, ShoppingBag, ChevronDown, Sun, Moon, Briefcase, GraduationCap, ArrowLeft } from 'lucide-react';
 import { api } from './services/api';
 import { supabase } from './lib/supabase';
+
+const PageLoading = () => (
+  <div className="flex flex-col items-center justify-center h-full gap-4 text-indigo-600">
+    <Loader2 className="animate-spin" size={40} />
+    <p className="text-[10px] font-black uppercase tracking-widest">Carregando Módulo...</p>
+  </div>
+);
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -193,57 +202,63 @@ const App: React.FC = () => {
     let activePage = currentPage || (isAdmin ? 'admin_panel' : (activeModule === 'studies' ? 'study_dashboard' : 'dashboard'));
     if (isExpired && !isAdmin && activePage !== 'plans' && activePage !== 'user_invoices') activePage = 'plans';
 
-    switch (activePage) {
-      case 'admin_panel': return <AdminPanel users={users} onUpdateUsers={setUsers} />;
-      case 'licenses': return <Licenses />;
-      case 'dashboard': 
-        return isAdmin ? (
-          <AdminDashboard users={users} licenses={allLicenses} plans={allPlans} />
-        ) : (
-          <Dashboard 
-            transactions={transactions} 
-            investments={investments} 
-            withdrawals={withdrawals} 
-            user={user} 
-            isAdmin={isAdmin} 
-            goals={goals} 
-            onNavigate={setCurrentPage}
-            onOpenTransaction={(type) => { setTransactionTypeTrigger(type); setCurrentPage('transactions'); }}
-            isSidebarCollapsed={isSidebarCollapsed}
-          />
-        );
-      case 'transactions': return <TransactionForm transactions={transactions} onAddTransaction={(t) => api.addTransaction(t).then(() => loadData())} onEditTransaction={(t) => api.addTransaction(t).then(() => loadData())} onDeleteTransaction={(id, all) => api.deleteTransaction(id, all).then(() => loadData())} categories={categories} onRefreshCategories={() => api.getCategories().then(setCategories)} onRefreshData={() => loadData()} initialType={transactionTypeTrigger} onClearInitialType={() => setTransactionTypeTrigger(null)} />;
-      case 'investments': return <Investments investments={investments} investmentTypes={investmentTypes} onAddInvestment={(inv) => api.addInvestment(inv).then(() => loadData())} onEditInvestment={(inv) => api.addInvestment(inv).then(() => loadData())} onDeleteInvestment={(id) => api.deleteInvestment(id).then(() => loadData())} onRefreshInvestmentTypes={() => api.getInvestmentTypes().then(setInvestmentTypes)} onWithdraw={(w) => api.addWithdrawal(w).then(() => loadData())} />;
-      case 'agenda': return <Agenda events={agendaEvents} onAddEvent={(e) => api.addAgendaEvent(e).then(() => loadData())} onDeleteEvent={(id) => api.deleteAgendaEvent(id).then(() => loadData())} onToggleEvent={(id) => { const ev = agendaEvents.find(e => e.id === id); if(ev) api.toggleAgendaEvent(id, !ev.isCompleted).then(() => loadData()); }} />;
-      case 'metas': return <Metas />;
-      case 'withdrawal_history': return <WithdrawalHistory withdrawals={withdrawals} />;
-      case 'user_invoices': return <UserInvoices user={user} />;
-      case 'plans': return <Plans user={user} onPlanSelected={() => loadData('dashboard')} />;
-      case 'study_dashboard': return <StudyDashboard onOpenTimer={() => setIsStudyTimerOpen(true)} isSidebarCollapsed={isSidebarCollapsed} />;
-      case 'study_analysis': return <EditalAnalysis />;
-      case 'study_courses': return <StudyCourses onSelectCourse={(c) => { setSelectedCourse(c); setCurrentPage('study_disciplines'); }} />;
-      case 'study_disciplines': return <StudyDisciplines selectedCourse={selectedCourse} onBack={() => setCurrentPage('study_courses')} onSelectDiscipline={(d) => { setSelectedDiscipline(d); setCurrentPage('study_lessons'); }} />;
-      case 'study_lessons': return <StudyLessons selectedDiscipline={selectedDiscipline} onBack={() => setCurrentPage('study_disciplines')} />;
-      case 'study_mock_tests': return <StudyMockTests onStartMock={() => {}} />;
-      case 'study_exercises': return <StudyExercises />;
-      case 'study_planning': return <StudyPlanning />;
-      default: 
-        return isAdmin ? (
-          <AdminDashboard users={users} licenses={allLicenses} plans={allPlans} />
-        ) : (
-          <Dashboard 
-            transactions={transactions} 
-            investments={investments} 
-            withdrawals={withdrawals} 
-            user={user} 
-            isAdmin={isAdmin} 
-            goals={goals} 
-            onNavigate={setCurrentPage}
-            onOpenTransaction={(type) => { setTransactionTypeTrigger(type); setCurrentPage('transactions'); }}
-            isSidebarCollapsed={isSidebarCollapsed}
-          />
-        );
-    }
+    return (
+      <Suspense fallback={<PageLoading />}>
+        {(() => {
+          switch (activePage) {
+            case 'admin_panel': return <AdminPanel users={users} onUpdateUsers={setUsers} />;
+            case 'licenses': return <Licenses />;
+            case 'dashboard': 
+              return isAdmin ? (
+                <AdminDashboard users={users} licenses={allLicenses} plans={allPlans} />
+              ) : (
+                <Dashboard 
+                  transactions={transactions} 
+                  investments={investments} 
+                  withdrawals={withdrawals} 
+                  user={user} 
+                  isAdmin={isAdmin} 
+                  goals={goals} 
+                  onNavigate={setCurrentPage}
+                  onOpenTransaction={(type) => { setTransactionTypeTrigger(type); setCurrentPage('transactions'); }}
+                  isSidebarCollapsed={isSidebarCollapsed}
+                />
+              );
+            case 'transactions': return <TransactionForm transactions={transactions} onAddTransaction={(t) => api.addTransaction(t).then(() => loadData())} onEditTransaction={(t) => api.addTransaction(t).then(() => loadData())} onDeleteTransaction={(id, all) => api.deleteTransaction(id, all).then(() => loadData())} categories={categories} onRefreshCategories={() => api.getCategories().then(setCategories)} onRefreshData={() => loadData()} initialType={transactionTypeTrigger} onClearInitialType={() => setTransactionTypeTrigger(null)} />;
+            case 'investments': return <Investments investments={investments} investmentTypes={investmentTypes} onAddInvestment={(inv) => api.addInvestment(inv).then(() => loadData())} onEditInvestment={(inv) => api.addInvestment(inv).then(() => loadData())} onDeleteInvestment={(id) => api.deleteInvestment(id).then(() => loadData())} onRefreshInvestmentTypes={() => api.getInvestmentTypes().then(setInvestmentTypes)} onWithdraw={(w) => api.addWithdrawal(w).then(() => loadData())} />;
+            case 'agenda': return <Agenda events={agendaEvents} onAddEvent={(e) => api.addAgendaEvent(e).then(() => loadData())} onDeleteEvent={(id) => api.deleteAgendaEvent(id).then(() => loadData())} onToggleEvent={(id) => { const ev = agendaEvents.find(e => e.id === id); if(ev) api.toggleAgendaEvent(id, !ev.isCompleted).then(() => loadData()); }} />;
+            case 'metas': return <Metas />;
+            case 'withdrawal_history': return <WithdrawalHistory withdrawals={withdrawals} />;
+            case 'user_invoices': return <UserInvoices user={user} />;
+            case 'plans': return <Plans user={user} onPlanSelected={() => loadData('dashboard')} />;
+            case 'study_dashboard': return <StudyDashboard onOpenTimer={() => setIsStudyTimerOpen(true)} isSidebarCollapsed={isSidebarCollapsed} />;
+            case 'study_analysis': return <EditalAnalysis />;
+            case 'study_courses': return <StudyCourses onSelectCourse={(c) => { setSelectedCourse(c); setCurrentPage('study_disciplines'); }} />;
+            case 'study_disciplines': return <StudyDisciplines selectedCourse={selectedCourse} onBack={() => setCurrentPage('study_courses')} onSelectDiscipline={(d) => { setSelectedDiscipline(d); setCurrentPage('study_lessons'); }} />;
+            case 'study_lessons': return <StudyLessons selectedDiscipline={selectedDiscipline} onBack={() => setCurrentPage('study_disciplines')} />;
+            case 'study_mock_tests': return <StudyMockTests onStartMock={() => {}} />;
+            case 'study_exercises': return <StudyExercises />;
+            case 'study_planning': return <StudyPlanning />;
+            default: 
+              return isAdmin ? (
+                <AdminDashboard users={users} licenses={allLicenses} plans={allPlans} />
+              ) : (
+                <Dashboard 
+                  transactions={transactions} 
+                  investments={investments} 
+                  withdrawals={withdrawals} 
+                  user={user} 
+                  isAdmin={isAdmin} 
+                  goals={goals} 
+                  onNavigate={setCurrentPage}
+                  onOpenTransaction={(type) => { setTransactionTypeTrigger(type); setCurrentPage('transactions'); }}
+                  isSidebarCollapsed={isSidebarCollapsed}
+                />
+              );
+          }
+        })()}
+      </Suspense>
+    );
   }, [currentPage, user, isAdmin, isExpired, errorState, users, transactions, investments, withdrawals, goals, categories, agendaEvents, allLicenses, allPlans, loadData, transactionTypeTrigger, selectedCourse, selectedDiscipline, activeModule, isSidebarCollapsed]);
 
   if (loading && !initialDataLoaded) return <div className="h-screen flex items-center justify-center bg-slate-950"><Loader2 className="animate-spin text-blue-500" size={48} /></div>;
