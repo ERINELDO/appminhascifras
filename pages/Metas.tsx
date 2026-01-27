@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Goal, GoalType, GoalEntry, GoalAccount } from '../types';
 import { 
@@ -210,8 +209,8 @@ export const Metas: React.FC = () => {
       startDate, 
       monthsForecast: parseInt(monthsForecast), 
       targetDate, 
-      typeId: typeId || null, 
-      accountId: accountId || null, 
+      typeId: typeId || undefined, 
+      accountId: accountId || undefined, 
       observation 
     };
 
@@ -607,7 +606,7 @@ export const Metas: React.FC = () => {
       {isAccountManagerOpen && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-none shadow-[12px_12px_0px_0px_rgba(0,0,0,0.2)] border-2 border-slate-300 w-full max-w-lg flex flex-col max-h-[85vh]">
-              <div className="px-8 py-6 border-b-2 border-slate-100 flex justify-between items-center bg-slate-50/50"><div className="flex items-center gap-3"><div className="p-2 bg-indigo-600 text-white rounded-none border-2 border-indigo-700 shadow-[3px_3px_0px_0px_rgba(67,56,202,1)]"><Landmark size={20}/></div><h3 className="text-lg font-black uppercase italic text-slate-800">Locais de Reserva</h3></div><button onClick={() => setIsAccountManagerOpen(false)} className="text-slate-400 hover:bg-slate-200 p-2 rounded-none transition-all"><X size={24}/></button></div>
+              <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50"><div className="flex items-center gap-3"><div className="p-2 bg-indigo-600 text-white rounded-none border-2 border-indigo-700 shadow-[3px_3px_0px_0px_rgba(67,56,202,1)]"><Landmark size={20}/></div><h3 className="text-lg font-black uppercase italic text-slate-800">Locais de Reserva</h3></div><button onClick={() => setIsAccountManagerOpen(false)} className="text-slate-400 hover:bg-slate-200 p-2 rounded-none transition-all"><X size={24}/></button></div>
               <div className="flex-1 overflow-y-auto p-8 space-y-5">
                  <button onClick={() => { setEditingAccountId(null); setNewAccountName(''); setIsAccountEditOpen(true); }} className="w-full py-4 bg-indigo-50 text-indigo-600 border-2 border-indigo-200 rounded-none font-black text-[10px] uppercase flex items-center justify-center gap-2 hover:bg-indigo-100 transition-all shadow-[3px_3px_0px_0px_rgba(79,70,229,0.05)]"><Plus size={16}/> Novo Local de Custódia</button>
                  <div className="space-y-2">
@@ -667,7 +666,7 @@ export const Metas: React.FC = () => {
            <div className="bg-white rounded-none shadow-[12px_12px_0px_0px_rgba(0,0,0,0.3)] border-2 border-slate-300 w-full max-w-md p-10 text-center animate-slide-in-up">
               <div className="w-20 h-20 bg-red-100 text-red-600 rounded-none border-2 border-red-200 flex items-center justify-center mx-auto mb-6 shadow-inner"><Trash2 size={40}/></div>
               <h3 className="text-2xl font-black text-slate-800 uppercase italic mb-2">Excluir Categoria?</h3>
-              <p className="text-slate-500 mb-8 text-sm px-4">Remover a categoria <span className="font-black text-slate-800">"{typeDeleteConfirm.name}"</span>? Isso não apagará suas metas, mas elas ficarão sem categoria definida.</p>
+              <p className="text-slate-500 mb-8 text-sm px-4">Remover a categoria <span className="font-black text-slate-700 italic">"{typeDeleteConfirm.name}"</span>? Isso não apagará suas metas, mas elas ficarão sem categoria definida.</p>
               <div className="flex flex-col gap-3">
                  <button onClick={executeDeleteType} disabled={isSubmitting} className="w-full py-4 bg-red-600 text-white rounded-none border-2 border-red-700 font-black text-[10px] uppercase shadow-[4px_4px_0px_0px_rgba(185,28,28,1)] hover:bg-red-700 transition-all flex items-center justify-center gap-2">
                     {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : 'Sim, Excluir Categoria'}
