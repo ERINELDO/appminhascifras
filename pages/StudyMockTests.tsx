@@ -3,13 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { FileEdit, Plus, Search, CheckCircle2, Play, Trash2, Pencil, X, Loader2, TrendingUp, Clock, Save, History, BarChart2, AlertTriangle, Calendar, Award, CheckCircle, AlertCircle, RefreshCw, Trophy, ChevronRight, GraduationCap, Library } from 'lucide-react';
 import { StudyMockTest } from '../types';
 import { api } from '../services/api';
+import { MockTestTimer } from '../components/MockTestTimer';
 
 interface StudyMockTestsProps {
   activeMockId?: string;
   onStartMock: (mock: StudyMockTest) => void;
 }
 
-export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, onStartMock }) => {
+export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId: initialActiveMockId }) => {
   const [mockTests, setMockTests] = useState<StudyMockTest[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -18,6 +19,7 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
   const [hasError, setHasError] = useState(false);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   
+  const [activeMock, setActiveMock] = useState<StudyMockTest | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [mockToDelete, setMockToDelete] = useState<StudyMockTest | null>(null);
 
@@ -31,7 +33,7 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
 
   useEffect(() => {
     loadMockTests();
-  }, [activeMockId]);
+  }, []);
 
   const loadMockTests = async () => {
     setLoading(true);
@@ -39,9 +41,30 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
     try {
       const data = await api.getStudyMockTests();
       setMockTests(data || []);
+      
+      // Verifica se há algum simulado iniciado mas não finalizado
+      const started = (data || []).find(m => m.horaInicio && !m.horaFim);
+      if (started) setActiveMock(started);
     } catch (e: any) {
       console.error("Erro ao carregar simulados:", e);
       setHasError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartMock = async (mock: StudyMockTest) => {
+    try {
+      setLoading(true);
+      const startTime = new Date().toISOString();
+      const updated = await api.updateStudyMockTest(mock.id, { 
+        horaInicio: startTime,
+        disciplinaNome: mock.disciplinaNome 
+      });
+      setActiveMock({ ...mock, horaInicio: startTime });
+      await loadMockTests();
+    } catch (e) {
+      setNotification({ message: 'Erro ao iniciar cronômetro.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -110,14 +133,13 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
     }
   };
 
-  const calculateDuration = (start?: string, end?: string) => {
-    if (!start || !end) return '—';
-    const s = new Date(start);
-    const e = new Date(end);
-    const diff = Math.floor((e.getTime() - s.getTime()) / 1000);
-    const h = Math.floor(diff / 3600);
-    const m = Math.floor((diff % 3600) / 60);
-    return `${h}h ${m}m`;
+  const formatTempoTotal = (seconds?: number) => {
+    if (!seconds) return '—';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    return `${m}m ${s}s`;
   };
 
   const filteredMocks = mockTests.filter(m => 
@@ -131,6 +153,16 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto pb-10">
       
+      {notification && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[300] animate-bounce-in">
+          <div className={`px-6 py-3 rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] flex items-center gap-3 border-2 ${notification.type === 'success' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-red-600 border-red-500 text-white'}`}>
+            {notification.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+            <span className="text-sm font-bold">{notification.message}</span>
+            <button onClick={() => setNotification(null)} className="ml-2 hover:opacity-70 transition-opacity"><X size={16} /></button>
+          </div>
+        </div>
+      )}
+
       {/* Header Padronizado */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -205,7 +237,7 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
                       <span className="text-xl font-bold text-gray-900">{mock.nQuestoes}</span>
                    </div>
                    <button 
-                    onClick={() => onStartMock(mock)}
+                    onClick={() => handleStartMock(mock)}
                     className="p-3 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-2xl transition-all shadow-sm flex items-center gap-2 font-bold text-xs uppercase"
                    >
                      <Play size={16} fill="currentColor" /> Iniciar
@@ -228,10 +260,11 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
             {completedMocks.map(mock => {
               const perc = Math.round((mock.nAcertos / mock.nQuestoes) * 100);
               return (
-                <div key={mock.id} className="bg-white rounded-[2rem] p-7 border-2 border-gray-200 flex flex-col hover:border-emerald-300 transition-all group">
+                <div key={mock.id} className="bg-white rounded-[2rem] p-7 border-2 border-gray-200 flex flex-col hover:border-emerald-300 transition-all group relative">
+                   <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500"></div>
                    <div className="flex justify-between items-start mb-5">
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{new Date(mock.dataSimulado + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Previsto: {new Date(mock.dataSimulado + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
                         <h4 className="text-md font-bold text-gray-800 uppercase italic truncate max-w-[150px]">{mock.disciplinaNome}</h4>
                       </div>
                       <div className="text-right">
@@ -239,14 +272,14 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
                       </div>
                    </div>
 
-                   <div className="grid grid-cols-2 gap-4 mb-6">
-                      <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
-                         <p className="text-[8px] font-black text-gray-400 uppercase mb-1">Duração</p>
-                         <p className="text-xs font-bold text-gray-700">{calculateDuration(mock.horaInicio, mock.horaFim)}</p>
+                   <div className="space-y-3 mb-6">
+                      <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col gap-1">
+                         <p className="text-[8px] font-black text-gray-400 uppercase">Data Realizado</p>
+                         <p className="text-xs font-bold text-gray-700">{mock.horaFim ? new Date(mock.horaFim).toLocaleDateString('pt-BR') : '—'}</p>
                       </div>
-                      <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
-                         <p className="text-[8px] font-black text-gray-400 uppercase mb-1">Saldo Líquido</p>
-                         <p className="text-xs font-bold text-indigo-600">{(mock.nAcertos || 0) - (mock.nErros || 0)} pts</p>
+                      <div className="p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-col gap-1">
+                         <p className="text-[8px] font-black text-indigo-400 uppercase">Tempo Realizado</p>
+                         <p className="text-xs font-bold text-indigo-600">{formatTempoTotal(mock.tempoTotal)}</p>
                       </div>
                    </div>
 
@@ -266,11 +299,22 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
         </div>
       )}
 
-      {/* Modal Agendar Simulado - Layout Paisagem Adaptativo */}
+      {/* Render do Cronômetro Ativo */}
+      {activeMock && (
+        <MockTestTimer 
+          activeMock={activeMock} 
+          onFinished={() => {
+            setActiveMock(null);
+            loadMockTests();
+            setNotification({ message: 'Simulado finalizado e gravado!', type: 'success' });
+          }} 
+        />
+      )}
+
+      {/* Modal Agendar Simulado */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col border border-gray-100 max-h-[90vh]">
-              {/* Header Compacto */}
               <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-5 flex justify-between items-center text-white shrink-0">
                  <div className="flex items-center gap-3">
                     <FileEdit size={20} />
@@ -281,7 +325,6 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
 
               <form onSubmit={handleSubmit} className="p-6 md:p-8 overflow-y-auto space-y-6">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
-                    {/* Lado Esquerdo: Identificação */}
                     <div className="space-y-5">
                        <div className="space-y-1.5">
                           <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Disciplina ou Matéria Alvo</label>
@@ -312,7 +355,6 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
                        </div>
                     </div>
 
-                    {/* Lado Direito: Métricas e Data */}
                     <div className="space-y-5">
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1.5">
@@ -335,7 +377,7 @@ export const StudyMockTests: React.FC<StudyMockTestsProps> = ({ activeMockId, on
                           <div className="flex gap-3 text-indigo-700">
                              <AlertCircle size={20} className="shrink-0" />
                              <p className="text-[10px] font-black uppercase leading-relaxed tracking-tighter">
-                               Os resultados de acertos e erros devem ser lançados ao concluir a execução do simulado para gerar suas métricas de desempenho.
+                               Ao iniciar o simulado, um cronômetro monitorará sua performance de tempo real.
                              </p>
                           </div>
                        </div>

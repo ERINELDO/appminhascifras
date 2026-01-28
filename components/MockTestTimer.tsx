@@ -50,10 +50,10 @@ export const MockTestTimer: React.FC<MockTestTimerProps> = ({ activeMock, onFini
     setIsSubmitting(true);
     try {
       const endTime = new Date().toISOString();
-      // Garantir que não estamos perdendo disciplinaNome no payload de update
       await api.updateStudyMockTest(activeMock.id, {
         disciplinaNome: activeMock.disciplinaNome,
         horaFim: endTime,
+        tempoTotal: seconds,
         nAcertos: a,
         nErros: err,
         saldoSimulado: a - err
@@ -98,7 +98,7 @@ export const MockTestTimer: React.FC<MockTestTimerProps> = ({ activeMock, onFini
       </div>
 
       {isFinishing && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
            <div className="bg-white rounded-none shadow-[12px_12px_0px_0px_rgba(0,0,0,0.3)] border-2 border-slate-300 w-full max-w-sm flex flex-col">
               <div className="px-8 py-6 border-b-2 border-slate-100 flex justify-between items-center bg-slate-900 text-white">
                  <h3 className="text-xl font-black italic uppercase tracking-tight">Desempenho Final</h3>

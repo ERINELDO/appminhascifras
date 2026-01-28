@@ -5,12 +5,14 @@ import {
   Wallet, Plus, TrendingUp, Building, Trash2, ListPlus, X, Save, Pencil, 
   ArrowDownRight, Info, Monitor, Smartphone, Globe, Loader2, LayoutGrid, 
   CheckCircle2, AlertCircle, Calendar, MoreVertical, ShieldCheck, 
-  ArrowUpRight, Landmark, Activity, Hash, ChevronDown, RotateCcw, CalendarDays, Trash
+  ArrowUpRight, Landmark, Activity, Hash, ChevronDown, RotateCcw, CalendarDays, Trash,
+  History
 } from 'lucide-react';
 import { api } from '../services/api';
 
 interface InvestmentsProps {
   investments: Investment[];
+  withdrawals: Withdrawal[];
   investmentTypes: InvestmentType[];
   onAddInvestment: (inv: Omit<Investment, 'id'>) => void;
   onEditInvestment: (inv: Investment) => void;
@@ -32,6 +34,7 @@ const MONTHS = [
 
 export const Investments: React.FC<InvestmentsProps> = ({ 
   investments, 
+  withdrawals,
   investmentTypes, 
   onAddInvestment, 
   onEditInvestment,
@@ -117,14 +120,17 @@ export const Investments: React.FC<InvestmentsProps> = ({
     if (wInvestmentId) {
       const selected = investments.find(inv => inv.id === wInvestmentId);
       if (selected) {
+        const totalWithdrawn = (withdrawals || []).filter(w => w.investmentId === selected.id).reduce((acc, w) => acc + w.value, 0);
+        const currentBalance = Math.max(0, selected.value - totalWithdrawn);
+        
         setWQuantity(selected.quantity);
-        setWValue(selected.value.toString());
+        setWValue(currentBalance.toString());
       }
     } else {
       setWQuantity('');
       setWValue('');
     }
-  }, [wInvestmentId, investments]);
+  }, [wInvestmentId, investments, withdrawals]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -335,8 +341,16 @@ export const Investments: React.FC<InvestmentsProps> = ({
     return t ? t.color : '#94a3b8';
   };
 
-  const totalInvested = investments.reduce((acc, inv) => acc + inv.value, 0);
-  const filteredTotal = filteredInvestments.reduce((acc, inv) => acc + inv.value, 0);
+  const totalWithdrawnGlobal = (withdrawals || []).reduce((acc, w) => acc + w.value, 0);
+  const totalInvestedOriginal = investments.reduce((acc, inv) => acc + inv.value, 0);
+  const totalInvestedReal = Math.max(0, totalInvestedOriginal - totalWithdrawnGlobal);
+
+  const filteredTotal = filteredInvestments.reduce((acc, inv) => {
+    const totalWithdrawnForThisInv = (withdrawals || []).filter(w => w.investmentId === inv.id).reduce((sum, w) => sum + w.value, 0);
+    return acc + Math.max(0, inv.value - totalWithdrawnForThisInv);
+  }, 0);
+
+  const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   return (
     <div className="space-y-6 relative pb-24">
@@ -370,9 +384,9 @@ export const Investments: React.FC<InvestmentsProps> = ({
         <div className="absolute right-0 top-0 opacity-5 -mr-10 -mt-10 pointer-events-none text-white"><Wallet size={200} /></div>
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
           <div>
-            <p className="text-slate-500 font-black mb-1.5 uppercase text-[10px] tracking-[0.3em]">Patrimônio Total Estruturado</p>
+            <p className="text-slate-500 font-black mb-1.5 uppercase text-[10px] tracking-[0.3em]">Patrimônio Líquido Atual</p>
             <h3 className="text-4xl font-black italic tracking-tighter text-emerald-400">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalInvested)}
+              {formatCurrency(totalInvestedReal)}
             </h3>
             <div className="mt-4 flex items-center gap-3">
                <div className="px-4 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-none text-[9px] font-black uppercase border-2 border-emerald-500/20 flex items-center gap-2 tracking-widest">
@@ -383,16 +397,16 @@ export const Investments: React.FC<InvestmentsProps> = ({
                </div>
             </div>
           </div>
-          {filteredTotal !== totalInvested && (
+          {filteredTotal !== totalInvestedReal && (
              <div className="bg-white/5 backdrop-blur-sm border-2 border-white/10 p-5 rounded-none text-right">
-                <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Total no Filtro</p>
-                <p className="text-2xl font-black text-indigo-300">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(filteredTotal)}</p>
+                <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Saldo Líquido no Filtro</p>
+                <p className="text-2xl font-black text-indigo-300">{formatCurrency(filteredTotal)}</p>
              </div>
           )}
         </div>
       </div>
 
-      {/* NOVO PAINEL DE FILTROS DESTACADOS */}
+      {/* PAINEL DE FILTROS DESTACADOS */}
       <div className="flex flex-col xl:flex-row gap-6 animate-fade-in">
           {/* INDICADOR DE VISÃO */}
           <div className="bg-white border-2 border-indigo-600 p-4 md:p-6 rounded-none shadow-[6px_6px_0px_0px_rgba(79,70,229,1)] flex items-center gap-5 min-w-[280px] shrink-0">
@@ -529,81 +543,97 @@ export const Investments: React.FC<InvestmentsProps> = ({
              <button onClick={resetFilters} className="mt-4 text-indigo-600 font-black text-[10px] uppercase underline">Ver Tudo</button>
           </div>
         ) : (
-          filteredInvestments.map((inv) => (
-            <div key={inv.id} className="bg-white rounded-none border-2 border-slate-300 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.05)] hover:shadow-[12px_12px_0px_0px_rgba(0,0,0,0.08)] transition-all group relative overflow-hidden flex flex-col h-full animate-fade-in">
-              
-              <div className="absolute top-0 right-0">
-                 <span className="px-4 py-2 text-[11px] font-black uppercase border-l-2 border-b-2 bg-slate-50 text-slate-500 border-slate-300 shadow-sm">
-                   Aporte: <span className="text-slate-800 ml-1 font-mono">{formatDate(inv.date)}</span>
-                 </span>
-              </div>
+          filteredInvestments.map((inv) => {
+            const invWithdrawals = (withdrawals || []).filter(w => w.investmentId === inv.id);
+            const totalWithdrawn = invWithdrawals.reduce((sum, w) => sum + w.value, 0);
+            const currentBalance = Math.max(0, inv.value - totalWithdrawn);
+            const lastWithdrawal = [...invWithdrawals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
-              <div className="p-6 pt-12 space-y-5 flex-1">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-indigo-50 text-indigo-600 border-2 border-indigo-100 rounded-none shadow-[3px_3px_0px_0px_rgba(0,0,0,0.05)] shrink-0">
-                    <Building size={24} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-sm font-black text-slate-800 uppercase italic truncate leading-tight mb-1.5" title={inv.name}>
-                      {inv.name}
-                    </h4>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-none text-[8px] font-black uppercase border-2" style={{ backgroundColor: `${getAssetTypeColor(inv.type)}15`, color: getAssetTypeColor(inv.type), borderColor: `${getAssetTypeColor(inv.type)}40` }}>
-                        {inv.type}
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                        <Landmark size={10} className="text-slate-300" /> {inv.location}
-                      </span>
+            return (
+              <div key={inv.id} className="bg-white rounded-none border-2 border-slate-300 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.05)] hover:shadow-[12px_12px_0px_0px_rgba(0,0,0,0.08)] transition-all group relative overflow-hidden flex flex-col h-full animate-fade-in">
+                
+                <div className="absolute top-0 right-0">
+                   <span className="px-4 py-2 text-[11px] font-black uppercase border-l-2 border-b-2 bg-slate-50 text-slate-500 border-slate-300 shadow-sm">
+                     Aporte: <span className="text-slate-800 ml-1 font-mono">{formatDate(inv.date)}</span>
+                   </span>
+                </div>
+
+                <div className="p-6 pt-12 space-y-5 flex-1">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-indigo-50 text-indigo-600 border-2 border-indigo-100 rounded-none shadow-[3px_3px_0px_0px_rgba(0,0,0,0.05)] shrink-0">
+                      <Building size={24} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-black text-slate-800 uppercase italic truncate leading-tight mb-1.5" title={inv.name}>
+                        {inv.name}
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-none text-[8px] font-black uppercase border-2" style={{ backgroundColor: `${getAssetTypeColor(inv.type)}15`, color: getAssetTypeColor(inv.type), borderColor: `${getAssetTypeColor(inv.type)}40` }}>
+                          {inv.type}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                          <Landmark size={10} className="text-slate-300" /> {inv.location}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="pt-4 border-t border-slate-50 space-y-4">
-                   <div className="flex justify-between items-end">
-                      <div className="flex flex-col">
-                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Patrimônio Alocado</span>
-                         <span className="text-xl font-black tracking-tighter text-emerald-600">
-                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(inv.value)}
-                         </span>
-                      </div>
-                      <div className="flex flex-col text-right">
-                         <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Qtd</span>
-                         <span className="text-xs font-black text-slate-600 font-mono italic">{inv.quantity}</span>
-                      </div>
-                   </div>
+                  <div className="pt-4 border-t border-slate-50 space-y-4">
+                     <div className="flex justify-between items-end">
+                        <div className="flex flex-col">
+                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Saldo Líquido Atual</span>
+                           <span className={`text-xl font-black tracking-tighter ${currentBalance > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                             {formatCurrency(currentBalance)}
+                           </span>
+                           
+                           {/* Informação do Último Saque */}
+                           {lastWithdrawal && (
+                             <div className="mt-2 flex items-center gap-2 text-[8px] font-bold text-red-500 uppercase italic">
+                                <History size={10} />
+                                <span>Último Saque: {formatCurrency(lastWithdrawal.value)} em {new Date(lastWithdrawal.date).toLocaleDateString('pt-BR')}</span>
+                             </div>
+                           )}
+                        </div>
+                        <div className="flex flex-col text-right">
+                           <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Qtd</span>
+                           <span className="text-xs font-black text-slate-600 font-mono italic">{inv.quantity}</span>
+                        </div>
+                     </div>
 
-                   <div className="flex items-center gap-2 pt-2">
-                      <button 
-                        onClick={() => handleWithdrawRequest(inv)}
-                        className="flex-1 py-2.5 bg-amber-100 text-amber-700 border-2 border-amber-200 rounded-none font-black text-[9px] uppercase tracking-widest hover:bg-amber-600 hover:text-white hover:border-amber-700 transition-all shadow-[3px_3px_0px_0px_rgba(245,158,11,0.2)] flex items-center justify-center gap-2"
-                      >
-                         <ArrowDownRight size={14} /> Efetuar Saque
-                      </button>
-
-                      <div className="relative" ref={openMenuId === inv.id ? menuRef : null}>
+                     <div className="flex items-center gap-2 pt-2">
                         <button 
-                          onClick={() => setOpenMenuId(openMenuId === inv.id ? null : inv.id)}
-                          className="p-2.5 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-none border-2 border-transparent hover:border-indigo-700 transition-all"
+                          onClick={() => handleWithdrawRequest(inv)}
+                          disabled={currentBalance <= 0}
+                          className={`flex-1 py-2.5 border-2 rounded-none font-black text-[9px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${currentBalance > 0 ? 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-600 hover:text-white hover:border-amber-700 shadow-[3px_3px_0px_0px_rgba(245,158,11,0.2)]' : 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'}`}
                         >
-                          <MoreVertical size={18} />
+                           <ArrowDownRight size={14} /> Efetuar Saque
                         </button>
 
-                        {openMenuId === inv.id && (
-                          <div className="absolute right-0 bottom-full mb-2 w-40 bg-white border-2 border-slate-300 shadow-[6px_6px_0px_0px_rgba(0,0,0,0.1)] z-30 animate-fade-in-up">
-                             <button onClick={() => handleEdit(inv)} className="w-full flex items-center gap-3 px-4 py-3 text-left text-[10px] font-black uppercase text-indigo-600 hover:bg-indigo-50 transition-colors border-b border-slate-100">
-                                <Pencil size={14} /> Editar
-                             </button>
-                             <button onClick={() => setAssetDeleteConfirm({ isOpen: true, id: inv.id, name: inv.name })} className="w-full flex items-center gap-3 px-4 py-3 text-left text-[10px] font-black uppercase text-red-600 hover:bg-red-50 transition-colors">
-                                <Trash2 size={14} /> Excluir
-                             </button>
-                          </div>
-                        )}
-                      </div>
-                   </div>
+                        <div className="relative" ref={openMenuId === inv.id ? menuRef : null}>
+                          <button 
+                            onClick={() => setOpenMenuId(openMenuId === inv.id ? null : inv.id)}
+                            className="p-2.5 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-none border-2 border-transparent hover:border-indigo-700 transition-all"
+                          >
+                            <MoreVertical size={18} />
+                          </button>
+
+                          {openMenuId === inv.id && (
+                            <div className="absolute right-0 bottom-full mb-2 w-40 bg-white border-2 border-slate-300 shadow-[6px_6px_0px_0px_rgba(0,0,0,0.1)] z-30 animate-fade-in-up">
+                               <button onClick={() => handleEdit(inv)} className="w-full flex items-center gap-3 px-4 py-3 text-left text-[10px] font-black uppercase text-indigo-600 hover:bg-indigo-50 transition-colors border-b border-slate-100">
+                                  <Pencil size={14} /> Editar
+                               </button>
+                               <button onClick={() => setAssetDeleteConfirm({ isOpen: true, id: inv.id, name: inv.name })} className="w-full flex items-center gap-3 px-4 py-3 text-left text-[10px] font-black uppercase text-red-600 hover:bg-red-50 transition-colors">
+                                  <Trash2 size={14} /> Excluir
+                               </button>
+                            </div>
+                          )}
+                        </div>
+                     </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -623,9 +653,14 @@ export const Investments: React.FC<InvestmentsProps> = ({
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Ativo sob Custódia</label>
                 <select required value={wInvestmentId} onChange={e => setWInvestmentId(e.target.value)} className="w-full p-4 rounded-none border-2 border-slate-200 focus:border-amber-500 outline-none bg-slate-50 font-black text-slate-800 shadow-inner">
                   <option value="">Selecione um ativo...</option>
-                  {investments.filter(inv => inv.value > 0).map(inv => (
-                    <option key={inv.id} value={inv.id}>{inv.name} ({inv.quantity}) - {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(inv.value)}</option>
-                  ))}
+                  {investments.map(inv => {
+                     const totalWithdrawn = (withdrawals || []).filter(w => w.investmentId === inv.id).reduce((sum, w) => sum + w.value, 0);
+                     const currentBalance = Math.max(0, inv.value - totalWithdrawn);
+                     if (currentBalance <= 0) return null;
+                     return (
+                        <option key={inv.id} value={inv.id}>{inv.name} ({inv.quantity}) - Líquido: {formatCurrency(currentBalance)}</option>
+                     );
+                  })}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -693,7 +728,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
         </div>
       )}
 
-      {/* MODAL CONFIRMAR EXCLUSÃO ATIVO (SIM/NÃO) */}
+      {/* MODAL CONFIRMAR EXCLUSÃO ATIVO */}
       {assetDeleteConfirm && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
            <div className="bg-white rounded-none shadow-[12px_12px_0px_0px_rgba(0,0,0,0.3)] border-2 border-slate-300 w-full max-w-md p-10 text-center animate-slide-in-up">
@@ -710,7 +745,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
         </div>
       )}
 
-      {/* MODAL CONFIRMAR EXCLUSÃO CATEGORIA (SIM/NÃO) */}
+      {/* MODAL CONFIRMAR EXCLUSÃO CATEGORIA */}
       {typeDeleteConfirm && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
            <div className="bg-white rounded-none shadow-[12px_12px_0px_0px_rgba(0,0,0,0.3)] border-2 border-slate-300 w-full max-w-md p-10 text-center animate-slide-in-up">
@@ -721,7 +756,7 @@ export const Investments: React.FC<InvestmentsProps> = ({
                  <button onClick={executeDeleteType} disabled={isSubmitting} className="w-full py-4 bg-red-600 text-white rounded-none border-2 border-red-700 font-black text-[10px] uppercase shadow-[4px_4px_0px_0px_rgba(185,28,28,1)] hover:bg-red-700 transition-all flex items-center justify-center gap-2">
                     {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : 'Sim, Remover Categoria'}
                  </button>
-                 <button onClick={() => setTypeDeleteConfirm(null)} disabled={isSubmitting} className="w-full py-4 text-slate-400 font-black text-[10px] uppercase hover:bg-slate-50 transition-all border-2 border-transparent hover:border-slate-200">Não, Manter</button>
+                 <button onClick={() => setTypeDeleteConfirm(null)} disabled={isSubmitting} className="w-full py-4 text-slate-400 font-black text-[10px] uppercase hover:bg-slate-50 transition-all rounded-none border-2 border-transparent hover:border-slate-200">Não, Manter</button>
               </div>
            </div>
         </div>

@@ -226,6 +226,7 @@ export interface StudyMockTest {
   nAcertos: number;
   nErros: number;
   saldoSimulado: number;
+  tempoTotal?: number;
 }
 
 export interface StudyExercise {

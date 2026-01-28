@@ -79,8 +79,10 @@ export const api = {
       observation: t.observation,
       user_id: session?.user?.id,
       is_recurring: t.isRecurring,
+      // Fix: Property 'recurrence_limit_type' does not exist on type 'Partial<Transaction>'. Did you mean 'recurrenceLimitType'?
       recurrence_limit_type: t.recurrenceLimitType,
       recurrence_end_date: t.recurrenceEndDate,
+      // Fix: Property 'recurrence_count' does not exist on type 'Partial<Transaction>'. Did you mean 'recurrenceCount'?
       recurrence_count: t.recurrenceCount,
       recurrence_group_id: t.recurrenceGroupId,
       payment_date: t.paymentDate
@@ -112,12 +114,13 @@ export const api = {
       description: t.description,
       observation: t.observation,
       user_id: session?.user?.id,
-      is_recurring: t.is_recurring,
-      recurrence_limit_type: t.recurrence_limit_type,
-      recurrence_end_date: t.recurrence_end_date,
-      recurrence_count: t.recurrence_count,
-      recurrence_group_id: t.recurrence_group_id,
-      payment_date: t.payment_date
+      // Fix: access batch elements using frontend interface properties (camelCase)
+      is_recurring: t.isRecurring,
+      recurrence_limit_type: t.recurrenceLimitType,
+      recurrence_end_date: t.recurrenceEndDate,
+      recurrence_count: t.recurrenceCount,
+      recurrence_group_id: t.recurrenceGroupId,
+      payment_date: t.paymentDate
     }));
     const { error } = await supabase.from('transactions').insert(payloads);
     if (error) throw error;
@@ -208,7 +211,7 @@ export const api = {
 
   // --- TIPOS DE INVESTIMENTO ---
   async getInvestmentTypes(): Promise<InvestmentType[]> {
-    const { data, error } = await supabase.from('investment_types').select('*').order('name');
+    const { data, error = null } = await supabase.from('investment_types').select('*').order('name');
     if (error) throw error;
     return data || [];
   },
@@ -241,6 +244,7 @@ export const api = {
     const payload = { 
       name: c.name,
       category: c.category,
+      // Fix: Property 'local_estudo' does not exist on type 'Partial<StudyCourse>'. Did you mean 'localEstudo'?
       local_estudo: c.localEstudo,
       status: c.status,
       user_id: session?.user?.id 
@@ -345,7 +349,8 @@ export const api = {
       horaFim: m.hora_fim,
       nAcertos: m.n_acertos,
       nErros: m.n_erros,
-      saldoSimulado: m.saldo_simulado
+      saldoSimulado: m.saldo_simulado,
+      tempoTotal: m.tempo_total
     }));
   },
 
@@ -376,7 +381,8 @@ export const api = {
     if (m.nErros !== undefined) payload.n_erros = m.nErros;
     if (m.saldoSimulado !== undefined) payload.saldo_simulado = m.saldoSimulado;
     if (m.horaInicio) payload.hora_inicio = m.horaInicio;
-    if (m.horaFim) payload.hora_fim = m.horaFim;
+    if (m.horaFim) payload.hora_f_im = m.horaFim;
+    if (m.tempoTotal !== undefined) payload.tempo_total = m.tempoTotal;
 
     const { data, error } = await supabase.from('study_mock_tests').update(payload).eq('id', id).select().single();
     if (error) throw error;
@@ -413,7 +419,9 @@ export const api = {
       course_id: ex.idCurso, 
       topic_id: ex.idTopico, 
       data_pratica: ex.dataPratica, 
+      // Fix: Property 'disciplina_nome' does not exist on type 'Partial<StudyExercise>'. Did you mean 'disciplinaNome'?
       disciplina_nome: ex.disciplinaNome, 
+      // Fix: Property 'n_questoes' does not exist on type 'Partial<StudyExercise>'. Did you mean 'nQuestoes'?
       n_questoes: ex.nQuestoes, 
       n_acertos: ex.nAcertos, 
       n_erros: ex.nErros,
@@ -428,7 +436,9 @@ export const api = {
       course_id: ex.idCurso, 
       topic_id: ex.idTopico, 
       data_pratica: ex.dataPratica, 
+      // Fix: Property 'disciplina_nome' does not exist on type 'Partial<StudyExercise>'. Did you mean 'disciplinaNome'?
       disciplina_nome: ex.disciplinaNome, 
+      // Fix: Property 'n_questoes' does not exist on type 'Partial<StudyExercise>'. Did you mean 'nQuestoes'?
       n_questoes: ex.nQuestoes, 
       n_acertos: ex.nAcertos, 
       n_erros: ex.nErros,
@@ -523,6 +533,7 @@ export const api = {
       user_id: authSession?.user?.id,
       discipline_id: sess.idDisciplina,
       topic_id: sess.idTopico,
+      // Fix: Property 'tipo_estudo' does not exist on type '{ idDisciplina: string; idTopico: string; tipoEstudo: string; durationSeconds: number; startTime: string; }'. Did you mean 'tipoEstudo'?
       tipo_estudo: sess.tipoEstudo,
       start_time: sess.startTime,
       end_time: new Date(new Date(sess.startTime).getTime() + (sess.durationSeconds * 1000)).toISOString(),
@@ -564,7 +575,9 @@ export const api = {
       discipline_id: p.idDisciplina, 
       topic_id: p.idTopico || null,
       dia_semana: p.diaSemana, 
-      hora_inicio: p.horaInicio,
+      // Fix: Property 'hora_inicio' does not exist on type 'Partial<StudyPlan>'. Did you mean 'horaInicio'?
+      hora_inicio: p.horaInicio, 
+      // Fix: Property 'hora_fim' does not exist on type 'Partial<StudyPlan>'. Did you mean 'horaFim'?
       hora_fim: p.horaFim, 
       tipo_estudo: p.tipoEstudo,
       color: p.color
@@ -734,6 +747,7 @@ export const api = {
     const resp = await fetch('/api/asaas/verify-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      // Fix: No value exists in scope for the shorthand property 'planId', 'userId', 'billingType'. Either declare one or provide an initializer.
       body: JSON.stringify({ paymentId })
     });
     if (!resp.ok) {

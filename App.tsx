@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Login } from './pages/Login'; 
 import { ProfileModal } from './components/ProfileModal';
 import { StudyTimer } from './components/StudyTimer';
 
-// Dynamic imports para divisão de código
+// Páginas com Importação Dinâmica
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const TransactionForm = lazy(() => import('./pages/TransactionForm').then(m => ({ default: m.TransactionForm })));
@@ -17,6 +18,7 @@ const Licenses = lazy(() => import('./pages/Licenses').then(m => ({ default: m.L
 const UserInvoices = lazy(() => import('./pages/UserInvoices').then(m => ({ default: m.UserInvoices })));
 const Plans = lazy(() => import('./pages/Plans').then(m => ({ default: m.Plans })));
 
+// Módulo de Estudos
 const StudyCourses = lazy(() => import('./pages/StudyCourses').then(m => ({ default: m.StudyCourses })));
 const StudyDashboard = lazy(() => import('./pages/StudyDashboard').then(m => ({ default: m.StudyDashboard })));
 const StudyDisciplines = lazy(() => import('./pages/StudyDisciplines').then(m => ({ default: m.StudyDisciplines })));
@@ -34,7 +36,7 @@ import { supabase } from './lib/supabase';
 const PageLoading = () => (
   <div className="flex flex-col items-center justify-center h-full gap-4 text-indigo-600">
     <Loader2 className="animate-spin" size={40} />
-    <p className="text-[10px] font-black uppercase tracking-widest">Carregando Módulo...</p>
+    <p className="text-[10px] font-black uppercase tracking-widest">Sincronizando Módulo...</p>
   </div>
 );
 
@@ -53,7 +55,6 @@ const App: React.FC = () => {
   const [isExpired, setIsExpired] = useState<boolean>(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => localStorage.getItem('theme') === 'dark');
 
-  // Estudo - Timer Control Global
   const [isStudyTimerOpen, setIsStudyTimerOpen] = useState(false);
   const [timerIsRunning, setTimerIsRunning] = useState(() => localStorage.getItem('babylon_study_session') !== null);
 
@@ -179,20 +180,11 @@ const App: React.FC = () => {
 
   const pageToRender = useMemo(() => {
     if (errorState) return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-500 animate-fade-in text-center p-8">
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-500 text-center p-8">
         <ShieldAlert size={64} className="text-red-500 mb-2" />
         <h3 className="text-xl font-black text-slate-800 uppercase italic">Acesso Restrito</h3>
         <p className="max-w-md font-medium">{errorState}</p>
-        <button 
-          onClick={async () => { 
-            await supabase.auth.signOut();
-            setErrorState(null);
-            setIsAuthenticated(false);
-          }} 
-          className="mt-4 px-8 py-3 bg-slate-900 text-white rounded-xl font-bold flex items-center gap-2"
-        >
-          <ArrowLeft size={18} /> Voltar
-        </button>
+        <button onClick={async () => { await supabase.auth.signOut(); setErrorState(null); setIsAuthenticated(false); }} className="mt-4 px-8 py-3 bg-slate-900 text-white rounded-xl font-bold flex items-center gap-2"><ArrowLeft size={18} /> Voltar</button>
       </div>
     );
     
@@ -207,24 +199,9 @@ const App: React.FC = () => {
           switch (activePage) {
             case 'admin_panel': return <AdminPanel users={users} onUpdateUsers={setUsers} />;
             case 'licenses': return <Licenses />;
-            case 'dashboard': 
-              return isAdmin ? (
-                <AdminDashboard users={users} licenses={allLicenses} plans={allPlans} />
-              ) : (
-                <Dashboard 
-                  transactions={transactions} 
-                  investments={investments} 
-                  withdrawals={withdrawals} 
-                  user={user} 
-                  isAdmin={isAdmin} 
-                  goals={goals} 
-                  onNavigate={setCurrentPage}
-                  onOpenTransaction={(type) => { setTransactionTypeTrigger(type); setCurrentPage('transactions'); }}
-                  isSidebarCollapsed={isSidebarCollapsed}
-                />
-              );
+            case 'dashboard': return <Dashboard transactions={transactions} investments={investments} withdrawals={withdrawals} user={user} isAdmin={isAdmin} goals={goals} onNavigate={setCurrentPage} onOpenTransaction={(type) => { setTransactionTypeTrigger(type); setCurrentPage('transactions'); }} isSidebarCollapsed={isSidebarCollapsed} />;
             case 'transactions': return <TransactionForm transactions={transactions} onAddTransaction={(t) => api.addTransaction(t).then(() => loadData())} onEditTransaction={(t) => api.addTransaction(t).then(() => loadData())} onDeleteTransaction={(id, all) => api.deleteTransaction(id, all).then(() => loadData())} categories={categories} onRefreshCategories={() => api.getCategories().then(setCategories)} onRefreshData={() => loadData()} initialType={transactionTypeTrigger} onClearInitialType={() => setTransactionTypeTrigger(null)} />;
-            case 'investments': return <Investments investments={investments} investmentTypes={investmentTypes} onAddInvestment={(inv) => api.addInvestment(inv).then(() => loadData())} onEditInvestment={(inv) => api.addInvestment(inv).then(() => loadData())} onDeleteInvestment={(id) => api.deleteInvestment(id).then(() => loadData())} onRefreshInvestmentTypes={() => api.getInvestmentTypes().then(setInvestmentTypes)} onWithdraw={(w) => api.addWithdrawal(w).then(() => loadData())} />;
+            case 'investments': return <Investments investments={investments} withdrawals={withdrawals} investmentTypes={investmentTypes} onAddInvestment={(inv) => api.addInvestment(inv).then(() => loadData())} onEditInvestment={(inv) => api.addInvestment(inv).then(() => loadData())} onDeleteInvestment={(id) => api.deleteInvestment(id).then(() => loadData())} onRefreshInvestmentTypes={() => api.getInvestmentTypes().then(setInvestmentTypes)} onWithdraw={(w) => api.addWithdrawal(w).then(() => loadData())} />;
             case 'agenda': return <Agenda events={agendaEvents} onAddEvent={(e) => api.addAgendaEvent(e).then(() => loadData())} onDeleteEvent={(id) => api.deleteAgendaEvent(id).then(() => loadData())} onToggleEvent={(id) => { const ev = agendaEvents.find(e => e.id === id); if(ev) api.toggleAgendaEvent(id, !ev.isCompleted).then(() => loadData()); }} />;
             case 'metas': return <Metas />;
             case 'withdrawal_history': return <WithdrawalHistory withdrawals={withdrawals} />;
@@ -238,22 +215,7 @@ const App: React.FC = () => {
             case 'study_mock_tests': return <StudyMockTests onStartMock={() => {}} />;
             case 'study_exercises': return <StudyExercises />;
             case 'study_planning': return <StudyPlanning />;
-            default: 
-              return isAdmin ? (
-                <AdminDashboard users={users} licenses={allLicenses} plans={allPlans} />
-              ) : (
-                <Dashboard 
-                  transactions={transactions} 
-                  investments={investments} 
-                  withdrawals={withdrawals} 
-                  user={user} 
-                  isAdmin={isAdmin} 
-                  goals={goals} 
-                  onNavigate={setCurrentPage}
-                  onOpenTransaction={(type) => { setTransactionTypeTrigger(type); setCurrentPage('transactions'); }}
-                  isSidebarCollapsed={isSidebarCollapsed}
-                />
-              );
+            default: return <Dashboard transactions={transactions} investments={investments} withdrawals={withdrawals} user={user} isAdmin={isAdmin} goals={goals} onNavigate={setCurrentPage} onOpenTransaction={(type) => { setTransactionTypeTrigger(type); setCurrentPage('transactions'); }} isSidebarCollapsed={isSidebarCollapsed} />;
           }
         })()}
       </Suspense>
@@ -279,10 +241,9 @@ const App: React.FC = () => {
       
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
         {!errorState && (
-          <header className="h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-8 shrink-0 z-20 transition-colors">
+          <header className="h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-8 shrink-0 z-20">
             <div className="flex items-center gap-2 sm:gap-4">
                <button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-600 dark:text-slate-400 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"><Menu size={24} /></button>
-               
                {!isAdmin && !isExpired && activeModule === 'financial' && (
                  <div className="hidden sm:flex items-center gap-2">
                     <button onClick={() => { setTransactionTypeTrigger('receita'); setCurrentPage('transactions'); }} className="px-4 py-2 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm">RECEITA</button>
@@ -293,7 +254,6 @@ const App: React.FC = () => {
             
             <div className="flex items-center gap-3 sm:gap-6">
               <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-amber-400">{isDarkMode ? <Sun size={18}/> : <Moon size={18}/>}</button>
-              
               {user && (
                 <div className="flex items-center gap-2 sm:gap-4">
                   <div className="text-right hidden xs:block">
@@ -301,27 +261,23 @@ const App: React.FC = () => {
                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">{user.licenseType}</p>
                   </div>
                   <div className="relative">
-                    <button onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)} className="flex items-center gap-1 group">
+                    <button onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)} className="flex items-center gap-1">
                       <img src={user.avatar} className="w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 border-emerald-500 cursor-pointer object-cover shadow-sm" alt="" />
                       <ChevronDown size={14} className="text-slate-400" />
                     </button>
-                    
                     {isProfileDropdownOpen && (
                       <div className="absolute right-0 mt-3 w-60 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 py-3 z-50 animate-fade-in-down">
                          <p className="px-4 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Sua Conta</p>
                          <button onClick={() => { setIsProfileModalOpen(true); setIsProfileDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-sm flex items-center gap-3"><UserIcon size={18}/> Meu Perfil</button>
-                         
                          {!isAdmin && (
                            <>
                              <button onClick={() => { setActiveModule('financial'); setCurrentPage('dashboard'); setIsProfileDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 font-bold text-sm flex items-center gap-3"><Briefcase size={18} className="text-emerald-500" /> Meu Financeiro</button>
                              <button onClick={() => { setActiveModule('studies'); setCurrentPage('study_dashboard'); setIsProfileDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 font-bold text-sm flex items-center gap-3"><GraduationCap size={18} className="text-indigo-500" /> Meus Estudos</button>
-                             
                              <div className="h-px bg-slate-100 dark:bg-slate-800 my-2"></div>
                              <button onClick={() => { setCurrentPage('plans'); setIsProfileDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-sm flex items-center gap-3"><ShoppingBag size={18}/> Assinar Plano</button>
                              <button onClick={() => { setCurrentPage('user_invoices'); setIsProfileDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-sm flex items-center gap-3"><CreditCard size={18}/> Minhas Faturas</button>
                            </>
                          )}
-                         
                          <div className="h-px bg-slate-100 dark:bg-slate-800 my-2"></div>
                          <button onClick={() => supabase.auth.signOut()} className="w-full text-left px-4 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-black text-sm flex items-center gap-3"><LogOut size={18}/> Sair</button>
                       </div>
@@ -332,19 +288,11 @@ const App: React.FC = () => {
             </div>
           </header>
         )}
-        
         <div className="flex-1 overflow-y-auto p-4 sm:p-8">{pageToRender}</div>
       </main>
-
       {isAuthenticated && !isAdmin && (isStudyTimerOpen || timerIsRunning) && (
-        <StudyTimer 
-          isOpen={isStudyTimerOpen} 
-          onClose={() => setIsStudyTimerOpen(false)} 
-          onOpen={() => setIsStudyTimerOpen(true)}
-          onTimerStatusChange={setTimerIsRunning}
-        />
+        <StudyTimer isOpen={isStudyTimerOpen} onClose={() => setIsStudyTimerOpen(false)} onOpen={() => setIsStudyTimerOpen(true)} onTimerStatusChange={setTimerIsRunning} />
       )}
-
       {isProfileModalOpen && user && <ProfileModal user={user} onClose={() => setIsProfileModalOpen(false)} onSave={async (u) => { await api.updateProfile(u); loadData(); }} />}
     </div>
   );
