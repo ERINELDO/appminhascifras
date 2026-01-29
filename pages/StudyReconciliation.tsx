@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { 
@@ -45,7 +44,7 @@ export const StudyReconciliation: React.FC = () => {
     setHistoryLoading(true);
     try {
       const data = await api.getStudyReconciliations();
-      setReconciliations(data);
+      setReconciliations(data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -75,34 +74,35 @@ export const StudyReconciliation: React.FC = () => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const prompt = `
-        Ação: Cruzamento Ultra-Rápido de Conteúdo Programático.
-        Objetivo: Identificar similaridade entre os Editais A e B.
+        Ação: Cruzamento Analítico de Conteúdo Programático.
+        Objetivo: Identificar a similaridade real entre o Edital A e o Edital B.
 
-        REGRAS DE EXTRAÇÃO:
-        1. Ignore: Cabeçalhos, taxas, datas, requisitos físicos, atribuições.
-        2. Localize: Seções de "Conteúdo Programático".
-        3. Limite: Processe as TOP 8 disciplinas mais pesadas.
-        4. Retorno: JSON Puro, sem comentários.
+        INSTRUÇÕES CRÍTICAS:
+        1. Localize apenas as seções de conteúdo programático.
+        2. Mapeie as disciplinas mais relevantes.
+        3. Identifique tópicos comuns e exclusivos.
+        4. O retorno DEVE ser EXCLUSIVAMENTE um objeto JSON válido. 
+        5. NÃO inclua explicações, avisos, markdown ou blocos de pensamento (thoughts).
 
-        FORMATO JSON:
+        FORMATO DO JSON:
         {
-          "editalAName": "Nome A",
-          "editalBName": "Nome B",
+          "editalAName": "Nome do Concurso A",
+          "editalBName": "Nome do Concurso B",
           "overallPercentage": 0-100,
           "details": [
             {
-              "discipline": "Nome",
+              "discipline": "Nome da Matéria",
               "similarity": 0-100,
-              "commonTopics": ["Topico 1", "Topico 2"],
-              "uniqueA": ["Diferencial A"],
-              "uniqueB": ["Diferencial B"]
+              "commonTopics": ["Tópico 1", "Tópico 2"],
+              "uniqueA": ["Item Exclusivo A"],
+              "uniqueB": ["Item Exclusivo B"]
             }
           ]
         }
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3-flash-preview',
         contents: {
           parts: [
             { inlineData: { mimeType: "application/pdf", data: base64A } },
@@ -112,7 +112,8 @@ export const StudyReconciliation: React.FC = () => {
         },
         config: {
           responseMimeType: "application/json",
-          // Removido thinkingConfig: { thinkingBudget: 0 } que causava erro 400
+          // Desabilitar o orçamento de pensamento para evitar o aviso de thoughtSignature
+          thinkingConfig: { thinkingBudget: 0 },
           responseSchema: {
             type: Type.OBJECT,
             properties: {
@@ -139,26 +140,39 @@ export const StudyReconciliation: React.FC = () => {
         }
       });
 
-      const rawText = response.text || "{}";
-      const cleanJson = rawText.trim().replace(/^```json\n?/, "").replace(/\n?```$/, "");
+      // Tratamento robusto para extrair apenas o JSON, removendo qualquer sufixo de pensamento ou markdown
+      const responseText = response.text || "";
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const cleanJson = jsonMatch ? jsonMatch[0] : responseText;
       
-      const result = JSON.parse(cleanJson);
+      let result: ReconciliationResult;
+      try {
+        result = JSON.parse(cleanJson);
+      } catch (parseError) {
+        console.error("Erro ao parsear JSON da IA:", cleanJson);
+        throw new Error("A resposta da IA não é um JSON válido. Tente novamente.");
+      }
+
+      // Validação defensiva dos campos obrigatórios para evitar erro de .length
+      if (!result || typeof result !== 'object') throw new Error("Estrutura de dados inválida.");
+      if (!result.details) result.details = [];
+      
       setAnalysisResult(result);
       
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: mainRec } = await supabase.from('study_reconciliations').insert({
             user_id: user.id,
-            edital_a_nome: result.editalAName,
-            edital_b_nome: result.editalBName,
-            porcentagem_geral: result.overallPercentage
+            edital_a_nome: result.editalAName || "Edital A",
+            edital_b_nome: result.editalBName || "Edital B",
+            porcentagem_geral: result.overallPercentage || 0
         }).select().single();
 
-        if (mainRec && result.details) {
+        if (mainRec && result.details && result.details.length > 0) {
             const detailsPayload = result.details.map((d: any) => ({
                 reconciliation_id: mainRec.id,
-                disciplina_nome: d.discipline,
-                similaridade: d.similarity,
+                disciplina_nome: d.discipline || "Disciplina",
+                similaridade: d.similarity || 0,
                 topicos_comuns: d.commonTopics || [],
                 topicos_exclusivos_a: d.uniqueA || [],
                 topicos_exclusivos_b: d.uniqueB || []
@@ -170,9 +184,8 @@ export const StudyReconciliation: React.FC = () => {
 
       setView('result');
     } catch (error: any) {
-      console.error("Erro na análise:", error);
-      const errorMsg = error.message || "Erro desconhecido";
-      alert(`Falha na análise estratégica: ${errorMsg.includes('400') ? 'O modelo Gemini Pro exige processamento de raciocínio completo. Tentando novamente sem restrições.' : 'Erro de processamento IA.'}`);
+      console.error("Erro na análise estratégica:", error);
+      alert(`Erro no processamento: ${error.message || "A IA demorou muito para responder ou enviou dados incorretos."}`);
     } finally {
       setIsLoading(false);
     }
@@ -186,7 +199,7 @@ export const StudyReconciliation: React.FC = () => {
         editalAName: rec.edital_a_nome,
         editalBName: rec.edital_b_nome,
         overallPercentage: rec.porcentagem_geral,
-        details: details.map(d => ({
+        details: (details || []).map(d => ({
           discipline: d.disciplina_nome,
           similarity: d.similaridade,
           commonTopics: d.topicos_comuns || [],
@@ -225,7 +238,7 @@ export const StudyReconciliation: React.FC = () => {
             </div>
             Dá para conciliar?
           </h2>
-          <p className="text-gray-500 text-sm mt-1 ml-[52px]">Mapeamento Estratégico de Conteúdo</p>
+          <p className="text-gray-500 text-sm mt-1 ml-[52px]">Comparativo estratégico de conteúdos programáticos</p>
         </div>
         <div className="flex gap-3">
            <button 
@@ -251,8 +264,8 @@ export const StudyReconciliation: React.FC = () => {
                  <FileText size={40} />
               </div>
               <div className="space-y-2">
-                 <h3 className="text-xl font-black text-slate-800 uppercase italic">Edital Alvo A</h3>
-                 <p className="text-sm text-slate-400 font-medium">Referência principal de estudos</p>
+                 <h3 className="text-xl font-black text-slate-800 uppercase italic">Edital Referência (A)</h3>
+                 <p className="text-sm text-slate-400 font-medium">Concurso que você já estuda ou pretende estudar</p>
               </div>
               <input type="file" ref={fileInputARef} onChange={(e) => setFileA(e.target.files?.[0] || null)} accept="application/pdf" className="hidden" />
               <button 
@@ -269,8 +282,8 @@ export const StudyReconciliation: React.FC = () => {
                  <FileText size={40} />
               </div>
               <div className="space-y-2">
-                 <h3 className="text-xl font-black text-slate-800 uppercase italic">Edital Alvo B</h3>
-                 <p className="text-sm text-slate-400 font-medium">Comparação de oportunidade</p>
+                 <h3 className="text-xl font-black text-slate-800 uppercase italic">Edital Comparativo (B)</h3>
+                 <p className="text-sm text-slate-400 font-medium">O novo concurso que você quer conciliar</p>
               </div>
               <input type="file" ref={fileInputBRef} onChange={(e) => setFileB(e.target.files?.[0] || null)} accept="application/pdf" className="hidden" />
               <button 
@@ -290,22 +303,22 @@ export const StudyReconciliation: React.FC = () => {
                 {isLoading ? (
                   <>
                     <Loader2 className="animate-spin" size={28} />
-                    <span>Mapeando Conteúdos...</span>
+                    <span>Realizando Cruzamento...</span>
                   </>
                 ) : (
                   <>
                     <Zap size={28} fill="currentColor" />
-                    <span>Lançar Análise de Cruzamento</span>
+                    <span>Iniciar Análise IA</span>
                   </>
                 )}
               </button>
               <div className="flex flex-col md:flex-row items-center justify-center gap-4 mt-8 opacity-60">
                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <Sparkles size={14} className="text-indigo-500" /> Sincronização Inteligente
+                    <Sparkles size={14} className="text-indigo-500" /> Alta Performance Flash
                  </p>
                  <div className="w-1 h-1 bg-slate-300 rounded-full hidden md:block"></div>
                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <Info size={14} className="text-indigo-500" /> Foco em disciplinas e tópicos
+                    <Info size={14} className="text-indigo-500" /> Comparação baseada em Conteúdo Programático
                  </p>
               </div>
            </div>
@@ -319,17 +332,17 @@ export const StudyReconciliation: React.FC = () => {
               <div className="absolute right-0 top-0 opacity-10 -mr-10 -mt-10 pointer-events-none"><Scale size={240} /></div>
               <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
                  <div className="flex-1 space-y-4 text-center md:text-left">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 text-indigo-400 rounded-full text-[10px] font-black uppercase border border-indigo-500/20 tracking-widest">Diagnóstico IA Babylon</div>
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 text-indigo-400 rounded-full text-[10px] font-black uppercase border border-indigo-500/20 tracking-widest">Diagnóstico de Similitude</div>
                     <h3 className="text-3xl font-black italic uppercase leading-tight tracking-tight">
                        {analysisResult.editalAName} <br/> <span className="text-indigo-500 mx-1">x</span> <br/> {analysisResult.editalBName}
                     </h3>
                     <div className="flex items-center gap-3 justify-center md:justify-start">
                        <CheckCircle2 size={16} className="text-emerald-500" />
-                       <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Disciplinas Sincronizadas com Sucesso</p>
+                       <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Sincronização de Editais Concluída</p>
                     </div>
                  </div>
                  <div className="flex flex-col items-center bg-white/5 backdrop-blur-xl p-8 rounded-[3rem] border border-white/10 shadow-2xl min-w-[280px]">
-                    <span className="text-[9px] font-black uppercase text-indigo-400 mb-3 tracking-[0.3em]">Similaridade Global</span>
+                    <span className="text-[9px] font-black uppercase text-indigo-400 mb-3 tracking-[0.3em]">Match de Conteúdo</span>
                     <div className="text-7xl font-black text-emerald-400 italic tracking-tighter tabular-nums leading-none mb-4">{analysisResult.overallPercentage}%</div>
                     <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden relative shadow-inner">
                        <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.6)] transition-all duration-1000 ease-out" style={{ width: `${analysisResult.overallPercentage}%` }}></div>
@@ -342,18 +355,17 @@ export const StudyReconciliation: React.FC = () => {
            <div className="space-y-6">
               <div className="flex items-center justify-between px-2">
                  <h4 className="text-xs font-black uppercase text-slate-400 tracking-[0.4em] flex items-center gap-3">
-                    <div className="w-2 h-2 bg-indigo-500 rounded-full"></div> Match por Disciplina
+                    <div className="w-2 h-2 bg-indigo-500 rounded-full"></div> Comparativo por Disciplina
                  </h4>
-                 <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Mapeamento Principal</div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {analysisResult.details.map((detail, idx) => (
+                 {(analysisResult.details || []).map((detail, idx) => (
                    <div key={idx} className="bg-white border-2 border-slate-200 p-8 rounded-[3rem] shadow-sm hover:border-indigo-500 hover:shadow-xl transition-all group animate-fade-in" style={{ animationDelay: `${idx * 0.1}s` }}>
                       <div className="flex justify-between items-start mb-8">
                          <div className="space-y-1">
                             <h5 className="text-xl font-black text-slate-800 uppercase italic truncate max-w-[220px]">{detail.discipline}</h5>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Cobertura Programática</span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Nível de Coincidência</span>
                          </div>
                          <div className="px-5 py-2.5 bg-slate-900 text-white rounded-2xl shadow-lg shadow-slate-200 group-hover:bg-indigo-600 transition-colors">
                             <span className="text-base font-black italic">{detail.similarity}%</span>
@@ -361,37 +373,35 @@ export const StudyReconciliation: React.FC = () => {
                       </div>
 
                       <div className="space-y-8">
-                         {/* Tópicos Comuns */}
                          <div className="space-y-4">
                             <div className="flex items-center gap-2">
                                <div className="w-6 h-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center border border-emerald-200"><Check size={14} strokeWidth={3} /></div>
-                               <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Conteúdo Unificado</span>
+                               <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Tópicos em Comum</span>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                               {detail.commonTopics.length > 0 ? detail.commonTopics.map((t, i) => (
+                               {(detail.commonTopics || []).length > 0 ? (detail.commonTopics || []).map((t, i) => (
                                  <span key={i} className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-xl text-[10px] font-bold group-hover:bg-emerald-100 transition-colors">{t}</span>
                                )) : <span className="text-[10px] text-slate-300 italic font-medium">Nenhum tópico idêntico identificado.</span>}
                             </div>
                          </div>
 
-                         {/* Diferenças */}
                          <div className="grid grid-cols-2 gap-6 pt-6 border-t-2 border-slate-50">
                             <div className="space-y-3">
-                               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><div className="w-1.5 h-1.5 bg-red-400 rounded-full"></div> Exclusivo Edital A</span>
+                               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><div className="w-1.5 h-1.5 bg-red-400 rounded-full"></div> Exclusivo A</span>
                                <div className="flex flex-col gap-2">
-                                  {detail.uniqueA.slice(0, 4).map((t, i) => (
+                                  {(detail.uniqueA || []).slice(0, 3).map((t, i) => (
                                     <span key={i} className="text-[10px] text-slate-600 font-bold leading-tight line-clamp-2">• {t}</span>
                                   ))}
-                                  {detail.uniqueA.length === 0 && <span className="text-[9px] text-slate-300 italic">Nada extra</span>}
+                                  {(detail.uniqueA || []).length === 0 && <span className="text-[9px] text-slate-300 italic">Sem diferenças</span>}
                                </div>
                             </div>
                             <div className="space-y-3">
-                               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><div className="w-1.5 h-1.5 bg-amber-400 rounded-full"></div> Exclusivo Edital B</span>
+                               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><div className="w-1.5 h-1.5 bg-amber-400 rounded-full"></div> Exclusivo B</span>
                                <div className="flex flex-col gap-2">
-                                  {detail.uniqueB.slice(0, 4).map((t, i) => (
+                                  {(detail.uniqueB || []).slice(0, 3).map((t, i) => (
                                     <span key={i} className="text-[10px] text-slate-600 font-bold leading-tight line-clamp-2">• {t}</span>
                                   ))}
-                                  {detail.uniqueB.length === 0 && <span className="text-[9px] text-slate-300 italic">Nada extra</span>}
+                                  {(detail.uniqueB || []).length === 0 && <span className="text-[9px] text-slate-300 italic">Sem diferenças</span>}
                                </div>
                             </div>
                          </div>
@@ -403,7 +413,7 @@ export const StudyReconciliation: React.FC = () => {
 
            <div className="flex justify-center pt-10">
               <button onClick={() => setView('form')} className="px-12 py-5 bg-slate-900 text-white rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-black hover:scale-105 active:scale-95 transition-all flex items-center gap-4 shadow-2xl shadow-slate-300 border-b-4 border-slate-700">
-                 <ArrowRight size={20} /> Nova Comparação Estratégica
+                 <ArrowRight size={20} /> Nova Comparação
               </button>
            </div>
         </div>
@@ -414,7 +424,7 @@ export const StudyReconciliation: React.FC = () => {
            <div className="p-8 border-b-2 border-slate-100 bg-slate-50/50 flex justify-between items-center">
               <div className="flex items-center gap-4">
                  <div className="p-2.5 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-100"><History size={20} /></div>
-                 <h3 className="text-sm font-black text-slate-800 uppercase italic">Arquivo de Similitude</h3>
+                 <h3 className="text-sm font-black text-slate-800 uppercase italic">Registro de Análises</h3>
               </div>
               <button onClick={loadHistory} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><RefreshCw size={20} className={historyLoading ? 'animate-spin' : ''}/></button>
            </div>
@@ -431,7 +441,7 @@ export const StudyReconciliation: React.FC = () => {
                       <tr className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] border-b-2 border-slate-100 bg-white">
                          <th className="px-10 py-6 text-center">Data</th>
                          <th className="px-10 py-6">Editais Comparados</th>
-                         <th className="px-10 py-6 text-center">Similaridade</th>
+                         <th className="px-10 py-6 text-center">Similitude</th>
                          <th className="px-10 py-6 text-center">Ações</th>
                       </tr>
                    </thead>
@@ -440,7 +450,7 @@ export const StudyReconciliation: React.FC = () => {
                         <tr>
                           <td colSpan={4} className="py-20 text-center">
                              <Target size={48} className="mx-auto text-slate-100 mb-4" />
-                             <p className="text-sm font-black text-slate-300 uppercase tracking-widest italic">Nenhum cruzamento salvo.</p>
+                             <p className="text-sm font-black text-slate-300 uppercase tracking-widest italic">Nenhuma análise salva.</p>
                           </td>
                         </tr>
                       ) : reconciliations.map((rec) => (
@@ -461,7 +471,7 @@ export const StudyReconciliation: React.FC = () => {
                            </td>
                            <td className="px-10 py-6 text-center">
                               <div className="inline-flex items-center gap-3 px-4 py-2 bg-emerald-50 text-emerald-700 border-2 border-emerald-100 rounded-2xl font-black text-xs italic">
-                                 {rec.porcentagem_geral}% Match
+                                 {rec.porcentagem_geral}%
                                  <div className="w-8 h-1.5 bg-emerald-200 rounded-full overflow-hidden">
                                     <div className="h-full bg-emerald-600" style={{ width: `${rec.porcentagem_geral}%` }}></div>
                                  </div>
@@ -481,9 +491,9 @@ export const StudyReconciliation: React.FC = () => {
            )}
            
            <div className="px-10 py-6 bg-slate-50 border-t-2 border-slate-100 flex justify-between items-center">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Armazenamento Cloud Seguro Babylon</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Armazenamento Criptografado</p>
               <div className="flex items-center gap-2 text-emerald-600 font-black text-[10px] uppercase tracking-widest">
-                 <ShieldCheck size={16} /> Auditoria Ativa
+                 <ShieldCheck size={16} /> Babylon Cloud Sync
               </div>
            </div>
         </div>
