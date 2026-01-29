@@ -7,7 +7,7 @@ import {
   GraduationCap, Library, BookCheck, 
   FileEdit, BarChart2, CreditCard,
   CalendarRange, Briefcase, Brain, Clock, 
-  Trophy, BookMarked, Wallet, FileSearch
+  Trophy, BookMarked, Wallet, FileSearch, Scale
 } from 'lucide-react';
 import { User } from '../types';
 
@@ -23,7 +23,7 @@ interface SidebarProps {
   user?: User;
   isAdmin?: boolean;
   onOpenProfile: () => void;
-  activeModule: 'financial' | 'studies';
+  activeModule: 'financial' | 'studies' | 'reconciliation';
   setActiveModule: (module: 'financial' | 'studies') => void;
 }
 
@@ -67,6 +67,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Análise de Edital', 
       icon: FileSearch,
       description: 'IA Mentor de Provas'
+    },
+    { 
+      id: 'study_reconciliation', 
+      label: 'Dá para conciliar?', 
+      icon: Scale,
+      description: 'Comparativo de editais'
     },
     { 
       id: 'study_courses', 
@@ -143,9 +149,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
            )}
         </div>
 
-        {/* Divider */}
-        <div className="mx-6 h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent"></div>
-
         {/* Navigation Menu */}
         <nav className="flex-1 px-3 mt-6 space-y-1.5 overflow-y-auto custom-sidebar-scroll">
           {menuItems.map((item) => {
@@ -195,46 +198,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     )}
                   </div>
                 )}
-
-                {/* Tooltip for Collapsed Mode */}
-                {isCollapsed && (
-                  <div className="absolute left-full ml-4 px-3 py-2 bg-slate-800 text-white text-[10px] font-black uppercase rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 border border-slate-700 tracking-widest">
-                    {item.label}
-                    <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
-                  </div>
-                )}
               </button>
             );
           })}
         </nav>
-
-        {/* Bottom Section - Contextual Progress */}
-        <div className={`p-4 mt-auto border-t border-slate-800/50 transition-all ${isCollapsed ? 'px-2' : 'px-4'}`}>
-          {!isCollapsed ? (
-            <div className={`bg-white/5 rounded-2xl p-4 border border-white/10`}>
-              <div className="flex items-center gap-3 mb-2">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br ${themeColorClass}`}>
-                  {activeModule === 'studies' ? <Target className="text-white" size={16} /> : <Wallet className="text-white" size={16} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black text-white uppercase tracking-tighter">
-                    {activeModule === 'studies' ? 'Meta Semanal' : 'Saúde Financeira'}
-                  </p>
-                  <p className={`text-[9px] font-bold ${accentColorClass}`}>Sincronizado</p>
-                </div>
-              </div>
-              <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                <div className={`bg-gradient-to-r ${themeColorClass} h-full rounded-full transition-all`} style={{ width: '75%' }}></div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex justify-center">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center bg-gradient-to-br ${themeColorClass}`}>
-                {activeModule === 'studies' ? <Target className="text-white" size={18} /> : <Wallet className="text-white" size={18} />}
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Footer */}
         <div className={`p-4 flex items-center justify-center border-t border-slate-800/30 ${isCollapsed ? 'px-2' : 'px-4'}`}>
@@ -248,23 +215,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </div>
-        
-        {/* Custom Scrollbar */}
-        <style>{`
-          .custom-sidebar-scroll::-webkit-scrollbar { 
-            width: 4px; 
-          }
-          .custom-sidebar-scroll::-webkit-scrollbar-track { 
-            background: transparent; 
-          }
-          .custom-sidebar-scroll::-webkit-scrollbar-thumb { 
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px; 
-          }
-          .custom-sidebar-scroll::-webkit-scrollbar-thumb:hover { 
-            background: rgba(255, 255, 255, 0.1);
-          }
-        `}</style>
       </aside>
     </>
   );

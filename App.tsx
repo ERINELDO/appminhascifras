@@ -27,6 +27,7 @@ const StudyMockTests = lazy(() => import('./pages/StudyMockTests').then(m => ({ 
 const StudyExercises = lazy(() => import('./pages/StudyExercises').then(m => ({ default: m.StudyExercises })));
 const StudyPlanning = lazy(() => import('./pages/StudyPlanning').then(m => ({ default: m.StudyPlanning })));
 const EditalAnalysis = lazy(() => import('./pages/EditalAnalysis').then(m => ({ default: m.EditalAnalysis })));
+const StudyReconciliation = lazy(() => import('./pages/StudyReconciliation').then(m => ({ default: m.StudyReconciliation })));
 
 import { Transaction, AgendaEvent, Investment, Category, User, InvestmentType, Withdrawal, Goal, AppSettings, License, LicensePlan, TransactionType, StudyCourse, StudyDiscipline } from './types';
 import { Menu, Loader2, ShieldAlert, LogOut, CreditCard, User as UserIcon, ShoppingBag, ChevronDown, Sun, Moon, Briefcase, GraduationCap, ArrowLeft } from 'lucide-react';
@@ -209,6 +210,7 @@ const App: React.FC = () => {
             case 'plans': return <Plans user={user} onPlanSelected={() => loadData('dashboard')} />;
             case 'study_dashboard': return <StudyDashboard onOpenTimer={() => setIsStudyTimerOpen(true)} isSidebarCollapsed={isSidebarCollapsed} />;
             case 'study_analysis': return <EditalAnalysis />;
+            case 'study_reconciliation': return <StudyReconciliation />;
             case 'study_courses': return <StudyCourses onSelectCourse={(c) => { setSelectedCourse(c); setCurrentPage('study_disciplines'); }} />;
             case 'study_disciplines': return <StudyDisciplines selectedCourse={selectedCourse} onBack={() => setCurrentPage('study_courses')} onSelectDiscipline={(d) => { setSelectedDiscipline(d); setCurrentPage('study_lessons'); }} />;
             case 'study_lessons': return <StudyLessons selectedDiscipline={selectedDiscipline} onBack={() => setCurrentPage('study_disciplines')} />;

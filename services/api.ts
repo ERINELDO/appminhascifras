@@ -1,4 +1,3 @@
-
 import { supabase } from '../lib/supabase';
 import { 
   StudyPlan, StudyCourse, StudyDiscipline, StudyTopic, 
@@ -79,10 +78,8 @@ export const api = {
       observation: t.observation,
       user_id: session?.user?.id,
       is_recurring: t.isRecurring,
-      // Fix: Property 'recurrence_limit_type' does not exist on type 'Partial<Transaction>'. Did you mean 'recurrenceLimitType'?
       recurrence_limit_type: t.recurrenceLimitType,
       recurrence_end_date: t.recurrenceEndDate,
-      // Fix: Property 'recurrence_count' does not exist on type 'Partial<Transaction>'. Did you mean 'recurrenceCount'?
       recurrence_count: t.recurrenceCount,
       recurrence_group_id: t.recurrenceGroupId,
       payment_date: t.paymentDate
@@ -114,7 +111,6 @@ export const api = {
       description: t.description,
       observation: t.observation,
       user_id: session?.user?.id,
-      // Fix: access batch elements using frontend interface properties (camelCase)
       is_recurring: t.isRecurring,
       recurrence_limit_type: t.recurrenceLimitType,
       recurrence_end_date: t.recurrenceEndDate,
@@ -244,7 +240,6 @@ export const api = {
     const payload = { 
       name: c.name,
       category: c.category,
-      // Fix: Property 'local_estudo' does not exist on type 'Partial<StudyCourse>'. Did you mean 'localEstudo'?
       local_estudo: c.localEstudo,
       status: c.status,
       user_id: session?.user?.id 
@@ -360,6 +355,7 @@ export const api = {
       user_id: session?.user?.id,
       data_simulado: m.dataSimulado, 
       disciplina_nome: m.disciplinaNome, 
+      // Fix: Use organizationalSimulado from StudyMockTest interface
       organizacao_simulado: m.organizacaoSimulado, 
       n_questoes: m.nQuestoes,
       n_acertos: m.nAcertos || 0, 
@@ -381,7 +377,8 @@ export const api = {
     if (m.nErros !== undefined) payload.n_erros = m.nErros;
     if (m.saldoSimulado !== undefined) payload.saldo_simulado = m.saldoSimulado;
     if (m.horaInicio) payload.hora_inicio = m.horaInicio;
-    if (m.horaFim) payload.hora_f_im = m.horaFim;
+    // Fix: changed hora_f_im to hora_fim to match database schema and getStudyMockTests output
+    if (m.horaFim) payload.hora_fim = m.horaFim;
     if (m.tempoTotal !== undefined) payload.tempo_total = m.tempoTotal;
 
     const { data, error } = await supabase.from('study_mock_tests').update(payload).eq('id', id).select().single();
@@ -418,12 +415,15 @@ export const api = {
       user_id: session?.user?.id, 
       course_id: ex.idCurso, 
       topic_id: ex.idTopico, 
+      // Fix: Property 'data_pratica' does not exist on type 'Partial<StudyExercise>'. Did you mean 'dataPratica'?
       data_pratica: ex.dataPratica, 
       // Fix: Property 'disciplina_nome' does not exist on type 'Partial<StudyExercise>'. Did you mean 'disciplinaNome'?
       disciplina_nome: ex.disciplinaNome, 
       // Fix: Property 'n_questoes' does not exist on type 'Partial<StudyExercise>'. Did you mean 'nQuestoes'?
       n_questoes: ex.nQuestoes, 
+      // Fix: Property 'n_acertos' does not exist on type 'Partial<StudyExercise>'. Did you mean 'nAcertos'?
       n_acertos: ex.nAcertos, 
+      // Fix: Property 'n_erros' does not exist on type 'Partial<StudyExercise>'. Did you mean 'nErros'?
       n_erros: ex.nErros,
       observacao: ex.observacao
     };
@@ -435,12 +435,15 @@ export const api = {
     const payload = {
       course_id: ex.idCurso, 
       topic_id: ex.idTopico, 
+      // Fix: Property 'data_pratica' does not exist on type 'Partial<StudyExercise>'. Did you mean 'dataPratica'?
       data_pratica: ex.dataPratica, 
       // Fix: Property 'disciplina_nome' does not exist on type 'Partial<StudyExercise>'. Did you mean 'disciplinaNome'?
       disciplina_nome: ex.disciplinaNome, 
       // Fix: Property 'n_questoes' does not exist on type 'Partial<StudyExercise>'. Did you mean 'nQuestoes'?
       n_questoes: ex.nQuestoes, 
+      // Fix: Property 'n_acertos' does not exist on type 'Partial<StudyExercise>'. Did you mean 'nAcertos'?
       n_acertos: ex.nAcertos, 
+      // Fix: Property 'n_erros' does not exist on type 'Partial<StudyExercise>'. Did you mean 'nErros'?
       n_erros: ex.nErros,
       observacao: ex.observacao
     };
@@ -533,7 +536,6 @@ export const api = {
       user_id: authSession?.user?.id,
       discipline_id: sess.idDisciplina,
       topic_id: sess.idTopico,
-      // Fix: Property 'tipo_estudo' does not exist on type '{ idDisciplina: string; idTopico: string; tipoEstudo: string; durationSeconds: number; startTime: string; }'. Did you mean 'tipoEstudo'?
       tipo_estudo: sess.tipoEstudo,
       start_time: sess.startTime,
       end_time: new Date(new Date(sess.startTime).getTime() + (sess.durationSeconds * 1000)).toISOString(),
@@ -575,9 +577,7 @@ export const api = {
       discipline_id: p.idDisciplina, 
       topic_id: p.idTopico || null,
       dia_semana: p.diaSemana, 
-      // Fix: Property 'hora_inicio' does not exist on type 'Partial<StudyPlan>'. Did you mean 'horaInicio'?
       hora_inicio: p.horaInicio, 
-      // Fix: Property 'hora_fim' does not exist on type 'Partial<StudyPlan>'. Did you mean 'horaFim'?
       hora_fim: p.horaFim, 
       tipo_estudo: p.tipoEstudo,
       color: p.color
@@ -747,7 +747,6 @@ export const api = {
     const resp = await fetch('/api/asaas/verify-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // Fix: No value exists in scope for the shorthand property 'planId', 'userId', 'billingType'. Either declare one or provide an initializer.
       body: JSON.stringify({ paymentId })
     });
     if (!resp.ok) {
@@ -772,5 +771,22 @@ export const api = {
   
   async deleteAgendaEvent(id: string) { await supabase.from('agenda_events').delete().eq('id', id); },
   
-  async toggleAgendaEvent(id: string, isCompleted: boolean) { await supabase.from('agenda_events').update({ is_completed: isCompleted }).eq('id', id); }
+  async toggleAgendaEvent(id: string, isCompleted: boolean) { await supabase.from('agenda_events').update({ is_completed: isCompleted }).eq('id', id); },
+
+  // --- RECONCILIAÇÃO DE EDITAIS ---
+  async getStudyReconciliations(): Promise<any[]> {
+    const { data, error } = await supabase.from('study_reconciliations').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getStudyReconciliationDetails(id: string): Promise<any[]> {
+    const { data, error } = await supabase.from('study_reconciliation_details').select('*').eq('reconciliation_id', id);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async deleteStudyReconciliation(id: string) {
+    await supabase.from('study_reconciliations').delete().eq('id', id);
+  }
 };
