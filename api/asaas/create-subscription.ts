@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
@@ -7,14 +6,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
 const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY!;
-const ASAAS_ENV = process.env.ASAAS_ENVIRONMENT || 'sandbox';
-const ASAAS_BASE_URL = ASAAS_ENV === 'production' 
-  ? 'https://api.asaas.com/v3'
-  : 'https://sandbox.asaas.com/api/v3';
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Garantir que sempre responderemos JSON
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method !== 'POST') {
@@ -22,6 +14,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    // ✅ BUSCAR CONFIGURAÇÕES DO BANCO (CRÍTICO!)
+    const { data: settings, error: settingsError } = await supabase
+      .from('app_settings')
+      .select('asaas_api_key, asaas_environment')
+      .eq('id', 'main')
+      .single();
+
+    if (settingsError || !settings?.asaas_api_key) {
+      console.error('[CONFIG ERROR]', settingsError);
+      return res.status(500).json({ 
+        error: 'Configurações do Asaas não encontradas. Configure em app_settings.' 
+      });
+    }
+
+    const ASAAS_API_KEY = settings.asaas_api_key;
+    const ASAAS_ENV = settings.asaas_environment || 'sandbox';
+    const ASAAS_BASE_URL = ASAAS_ENV === 'production' 
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+
     const { planId, userId, billingType = 'UNDEFINED' } = req.body;
 
     if (!planId || !userId) {
@@ -29,15 +41,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 1. Buscar Usuário e Plano
-    const { data: user, error: userErr } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    const { data: plan, error: planErr } = await supabase.from('license_plans').select('*').eq('id', planId).single();
+    const { data: user, error: userErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    const { data: plan, error: planErr } = await supabase
+      .from('license_plans')
+      .select('*')
+      .eq('id', planId)
+      .single();
 
     if (!user || !plan) {
       return res.status(404).json({ error: 'Usuário ou Plano não encontrado no banco.' });
     }
 
     if (!user.cpf_cnpj) {
-      return res.status(400).json({ error: 'Você precisa preencher seu CPF/CNPJ no perfil antes de assinar.' });
+      return res.status(400).json({ 
+        error: 'Você precisa preencher seu CPF/CNPJ no perfil antes de assinar.' 
+      });
     }
 
     // 2. Garantir Cliente no Asaas
@@ -52,42 +75,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const resp = await fetch(`${ASAAS_BASE_URL}/customers`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'access_token': ASAAS_API_KEY },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'access_token': ASAAS_API_KEY 
+        },
         body: JSON.stringify(customerPayload)
       });
       
       const cData = await resp.json();
-      if (!resp.ok) throw new Error(cData.errors?.[0]?.description || 'Erro ao criar cliente no Asaas');
+      if (!resp.ok) {
+        console.error('[ASAAS CUSTOMER ERROR]', cData);
+        throw new Error(cData.errors?.[0]?.description || 'Erro ao criar cliente no Asaas');
+      }
       
       asaasCustomerId = cData.id;
-      await supabase.from('profiles').update({ asaas_customer_id: asaasCustomerId }).eq('id', userId);
+      await supabase
+        .from('profiles')
+        .update({ asaas_customer_id: asaasCustomerId })
+        .eq('id', userId);
     }
 
     // 3. Criar Assinatura no Asaas
-    const cycleMap: any = { 'Mensal': 'MONTHLY', 'Anual': 'YEARLY', 'Vitalícia': 'MONTHLY' };
+    const cycleMap: any = { 
+      'Mensal': 'MONTHLY', 
+      'Anual': 'YEARLY', 
+      'Vitalícia': 'MONTHLY' 
+    };
     
     const subscriptionPayload = {
       customer: asaasCustomerId,
       billingType: billingType === 'UNDEFINED' ? 'PIX' : billingType,
       value: plan.price,
-      nextDueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Amanhã
+      nextDueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
       cycle: cycleMap[plan.type] || 'MONTHLY',
       description: `Assinatura ${plan.name} - Babylon Fin`,
       externalReference: planId,
-      // CRITICAL: Para PIX em assinaturas, isso força a criação imediata da primeira cobrança
-      notifyPaymentCreatedImmediately: true 
+      notifyPaymentCreatedImmediately: true
     };
 
     const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'access_token': ASAAS_API_KEY },
+      headers: { 
+        'Content-Type': 'application/json', 
+        'access_token': ASAAS_API_KEY 
+      },
       body: JSON.stringify(subscriptionPayload)
     });
 
     const subData = await subResp.json();
-    if (!subResp.ok) throw new Error(subData.errors?.[0]?.description || 'Erro ao gerar assinatura no Asaas');
+    if (!subResp.ok) {
+      console.error('[ASAAS SUBSCRIPTION ERROR]', subData);
+      throw new Error(subData.errors?.[0]?.description || 'Erro ao gerar assinatura no Asaas');
+    }
 
-    // 4. Buscar a cobrança gerada (Aguardar brevemente para o Asaas processar a fila)
+    // 4. Buscar a cobrança gerada
     await new Promise(r => setTimeout(r, 1500));
     const payResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${subData.id}/payments`, {
       headers: { 'access_token': ASAAS_API_KEY }
@@ -96,26 +137,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const firstPayment = payData.data?.[0];
 
     if (!firstPayment) {
-      throw new Error("Assinatura criada, mas a primeira fatura ainda não foi gerada pelo gateway. Tente novamente em instantes.");
+      throw new Error("Assinatura criada, mas a primeira fatura ainda não foi gerada. Tente novamente.");
     }
 
     // 5. Inserir Licença (Pendente)
-    const { data: newLicense, error: licError } = await supabase.from('licenses').insert([{
-      user_id: userId,
-      plan_id: planId,
-      name: plan.name,
-      type: plan.type,
-      value: plan.price,
-      status: 'Pendente',
-      frequency: plan.type,
-      asaas_subscription_id: subData.id,
-      asaas_payment_id: firstPayment.id
-    }]).select().single();
+    const { data: newLicense, error: licError } = await supabase
+      .from('licenses')
+      .insert([{
+        user_id: userId,
+        plan_id: planId,
+        name: plan.name,
+        type: plan.type,
+        value: plan.price,
+        status: 'Pendente',
+        frequency: plan.type,
+        asaas_subscription_id: subData.id,
+        asaas_payment_id: firstPayment.id
+      }])
+      .select()
+      .single();
 
-    if (licError) throw new Error("Erro ao registrar licença no banco: " + licError.message);
+    if (licError) {
+      console.error('[LICENSE ERROR]', licError);
+      throw new Error("Erro ao registrar licença: " + licError.message);
+    }
 
     // 6. Inserir Invoice
-    const { error: invError } = await supabase.from('invoices').insert({
+    await supabase.from('invoices').insert({
       user_id: userId,
       license_id: newLicense.id,
       amount: plan.price,
@@ -125,7 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       description: `Fatura ${plan.name}`
     });
 
-    // 7. Tentar obter PIX (Se falhar, não trava o processo principal)
+    // 7. Tentar obter PIX
     let pixData = null;
     if (billingType === 'PIX' || firstPayment.billingType === 'PIX') {
       try {
@@ -137,8 +185,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           pixData = { qrCode: qrData.encodedImage, copyPaste: qrData.payload };
         }
       } catch (pixErr) {
-        console.warn("Falha não-crítica ao gerar QR Code PIX:", pixErr);
-        // O usuário usará o invoiceUrl como fallback
+        console.warn("Falha ao gerar QR Code PIX:", pixErr);
       }
     }
 
