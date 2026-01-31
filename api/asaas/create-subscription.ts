@@ -6,6 +6,39 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
 const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 
+// ✅ FUNÇÃO PARA BUSCAR CREDENCIAIS (BANCO OU VERCEL)
+async function getAsaasConfig() {
+  try {
+    // Tenta buscar do banco primeiro
+    const { data: settings } = await supabase
+      .from('app_settings')
+      .select('asaas_api_key, asaas_environment')
+      .eq('id', 'main')
+      .single();
+
+    if (settings?.asaas_api_key) {
+      console.log('[CONFIG] Usando credenciais do banco de dados');
+      return {
+        apiKey: settings.asaas_api_key,
+        environment: settings.asaas_environment || 'sandbox'
+      };
+    }
+  } catch (error) {
+    console.warn('[CONFIG] Banco indisponível, usando variáveis do Vercel');
+  }
+
+  // Fallback para variáveis do Vercel
+  const apiKey = process.env.ASAAS_API_KEY;
+  const environment = process.env.ASAAS_ENVIRONMENT || 'sandbox';
+
+  if (!apiKey) {
+    throw new Error('ASAAS_API_KEY não configurada nem no banco nem no Vercel');
+  }
+
+  console.log('[CONFIG] Usando credenciais do Vercel');
+  return { apiKey, environment };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Content-Type', 'application/json');
 
@@ -14,22 +47,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // ✅ BUSCAR CONFIGURAÇÕES DO BANCO (CRÍTICO!)
-    const { data: settings, error: settingsError } = await supabase
-      .from('app_settings')
-      .select('asaas_api_key, asaas_environment')
-      .eq('id', 'main')
-      .single();
-
-    if (settingsError || !settings?.asaas_api_key) {
-      console.error('[CONFIG ERROR]', settingsError);
-      return res.status(500).json({ 
-        error: 'Configurações do Asaas não encontradas. Configure em app_settings.' 
-      });
-    }
-
-    const ASAAS_API_KEY = settings.asaas_api_key;
-    const ASAAS_ENV = settings.asaas_environment || 'sandbox';
+    // ✅ Buscar configurações (banco ou Vercel)
+    const { apiKey: ASAAS_API_KEY, environment: ASAAS_ENV } = await getAsaasConfig();
+    
     const ASAAS_BASE_URL = ASAAS_ENV === 'production' 
       ? 'https://api.asaas.com/v3'
       : 'https://sandbox.asaas.com/api/v3';
@@ -41,20 +61,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 1. Buscar Usuário e Plano
-    const { data: user, error: userErr } = await supabase
+    const { data: user } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
 
-    const { data: plan, error: planErr } = await supabase
+    const { data: plan } = await supabase
       .from('license_plans')
       .select('*')
       .eq('id', planId)
       .single();
 
     if (!user || !plan) {
-      return res.status(404).json({ error: 'Usuário ou Plano não encontrado no banco.' });
+      return res.status(404).json({ error: 'Usuário ou Plano não encontrado.' });
     }
 
     if (!user.cpf_cnpj) {
@@ -65,6 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 2. Garantir Cliente no Asaas
     let asaasCustomerId = user.asaas_customer_id;
+    
     if (!asaasCustomerId) {
       const customerPayload = {
         name: user.name,
@@ -83,6 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       
       const cData = await resp.json();
+      
       if (!resp.ok) {
         console.error('[ASAAS CUSTOMER ERROR]', cData);
         throw new Error(cData.errors?.[0]?.description || 'Erro ao criar cliente no Asaas');
@@ -123,16 +145,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const subData = await subResp.json();
+    
     if (!subResp.ok) {
       console.error('[ASAAS SUBSCRIPTION ERROR]', subData);
       throw new Error(subData.errors?.[0]?.description || 'Erro ao gerar assinatura no Asaas');
     }
 
-    // 4. Buscar a cobrança gerada
+    // 4. Buscar a primeira cobrança gerada
     await new Promise(r => setTimeout(r, 1500));
+    
     const payResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${subData.id}/payments`, {
       headers: { 'access_token': ASAAS_API_KEY }
     });
+    
     const payData = await payResp.json();
     const firstPayment = payData.data?.[0];
 
@@ -140,7 +165,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error("Assinatura criada, mas a primeira fatura ainda não foi gerada. Tente novamente.");
     }
 
-    // 5. Inserir Licença (Pendente)
+    // 5. Inserir Licença
     const { data: newLicense, error: licError } = await supabase
       .from('licenses')
       .insert([{
@@ -180,9 +205,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const qrCodeRes = await fetch(`${ASAAS_BASE_URL}/payments/${firstPayment.id}/pixQrCode`, {
           headers: { 'access_token': ASAAS_API_KEY }
         });
+        
         if (qrCodeRes.ok) {
           const qrData = await qrCodeRes.json();
-          pixData = { qrCode: qrData.encodedImage, copyPaste: qrData.payload };
+          pixData = { 
+            qrCode: qrData.encodedImage, 
+            copyPaste: qrData.payload 
+          };
         }
       } catch (pixErr) {
         console.warn("Falha ao gerar QR Code PIX:", pixErr);
@@ -198,7 +227,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
   } catch (error: any) {
-    console.error("[ASAAS API ERROR]", error.message);
+    console.error("[CREATE SUBSCRIPTION ERROR]", error.message);
     return res.status(500).json({ error: error.message });
   }
 }
