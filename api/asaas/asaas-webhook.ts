@@ -6,18 +6,30 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).end();
-
+// ✅ FUNÇÃO PARA BUSCAR TOKEN (BANCO OU VERCEL)
+async function getWebhookToken() {
   try {
-    // ✅ BUSCAR TOKEN DO BANCO
     const { data: settings } = await supabase
       .from('app_settings')
       .select('asaas_webhook_token')
       .eq('id', 'main')
       .single();
 
-    const WEBHOOK_TOKEN = settings?.asaas_webhook_token;
+    if (settings?.asaas_webhook_token) {
+      return settings.asaas_webhook_token;
+    }
+  } catch (error) {
+    console.warn('[WEBHOOK] Usando token do Vercel');
+  }
+
+  return process.env.ASAAS_WEBHOOK_TOKEN;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  try {
+    const WEBHOOK_TOKEN = await getWebhookToken();
     const asaasToken = req.headers['asaas-access-token'];
 
     if (WEBHOOK_TOKEN && asaasToken !== WEBHOOK_TOKEN) {
@@ -26,7 +38,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const { event: eventType, payment } = req.body;
-    if (!payment) return res.status(200).json({ success: true, message: 'No payment data' });
+    
+    if (!payment) {
+      return res.status(200).json({ success: true, message: 'No payment data' });
+    }
 
     console.log(`[WEBHOOK] Evento: ${eventType} | Payment: ${payment.id}`);
 
@@ -52,8 +67,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (license) {
           const expDate = new Date();
-          if (license.type === 'Anual') expDate.setFullYear(expDate.getFullYear() + 1);
-          else expDate.setMonth(expDate.getMonth() + 1);
+          if (license.type === 'Anual') {
+            expDate.setFullYear(expDate.getFullYear() + 1);
+          } else {
+            expDate.setMonth(expDate.getMonth() + 1);
+          }
 
           await supabase.from('licenses').update({
             status: 'Ativa',
@@ -69,14 +87,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             active_license_id: license.id 
           }).eq('id', license.user_id);
           
-          console.log(`[WEBHOOK SUCCESS] Usuário ${license.user_id} ativado com plano ${license.name}`);
+          console.log(`[WEBHOOK SUCCESS] Licença ${license.id} ativada para usuário ${license.user_id}`);
         }
       }
     }
 
     return res.status(200).json({ success: true });
+    
   } catch (error: any) {
-    console.error('[ASAAS WEBHOOK ERROR]', error.message);
+    console.error('[WEBHOOK ERROR]', error.message);
     return res.status(500).json({ error: error.message });
   }
 }
